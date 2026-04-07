@@ -7,6 +7,7 @@
 - [快速开始](#快速开始)
 - [每日复盘](#每日复盘)
 - [监控与提醒](#监控与提醒)
+- [详细文档](./docs/README.md)
 - [贡献指南](./CONTRIBUTING.md)
 - [安全说明](./SECURITY.md)
 - [更新记录](./CHANGELOG.md)
@@ -92,6 +93,20 @@ python3 analyze_asset.py --asset ETH --market crypto --timeframe 4h --format mar
 ```bash
 cd scripts
 python3 run_daily_recap_workflow.py --stdout-only
+```
+
+示例输出片段：
+
+```text
+2026-04-07 策略建议
+共分析5个标的 | 🟢买入:0 🟡观望:4 🔴卖出:1
+
+📊 分析结果摘要
+⚪ 英伟达 (NVDA): 观望 | 评分 0 | 震荡｜建议第一观察买点：177.61；确认买点：189.26 |
+⚪ 礼来 (LLY): 观望 | 评分 -8 | 震荡｜建议第一观察买点：877.11；确认买点：938.12 |
+⚪ 比亚迪 (002594.SZ): 观望 | 评分 8 | 震荡｜建议第一观察买点：96.34；确认买点：102.55 |
+🔴 SOL (SOLUSDT): 卖出 | 评分 -52 | 看空｜反弹修复观察位：80.65 |
+⚪ ETH (ETHUSDT): 观望 | 评分 16 | 震荡｜建议第一观察买点：2021.5；确认买点：2091.08 |
 ```
 
 ## 每日复盘
@@ -200,3 +215,11 @@ python3 report_accuracy.py --format markdown
 - 个人通知配置建议放在 `*.local.json` 这类被忽略的文件里
 - token 和密钥应通过环境变量传入，而不是写进仓库
 - 如果发现泄漏或隐私问题，建议先看 [SECURITY.md](./SECURITY.md)
+
+## 详细文档
+
+- [docs/README.md](./docs/README.md)
+- [docs/daily-recap.md](./docs/daily-recap.md)
+- [docs/data-sources.md](./docs/data-sources.md)
+- [docs/monitoring.md](./docs/monitoring.md)
+- [docs/privacy.md](./docs/privacy.md)

@@ -13,6 +13,7 @@ Explainable stock and crypto market analysis, monitoring, and strategy-brief dai
 - [Quick Start](#quick-start)
 - [Daily Recap](#daily-recap)
 - [Monitoring](#monitoring)
+- [Docs](./docs/README.md)
 - [Contributing](./CONTRIBUTING.md)
 - [Security](./SECURITY.md)
 - [Changelog](./CHANGELOG.md)
@@ -146,6 +147,27 @@ The recap generator is designed for channel delivery rather than notebook-style 
 - market overview blocks for US equities, A-shares, and crypto
 - per-asset strategy cards with observation-buy and confirmation-buy levels
 - an exceptions section when live data falls back to cache
+
+Sample recap excerpt:
+
+```text
+2026-04-07 策略建议
+共分析5个标的 | 🟢买入:0 🟡观望:4 🔴卖出:1
+
+📊 分析结果摘要
+⚪ 英伟达 (NVDA): 观望 | 评分 0 | 震荡｜建议第一观察买点：177.61；确认买点：189.26 |
+⚪ 礼来 (LLY): 观望 | 评分 -8 | 震荡｜建议第一观察买点：877.11；确认买点：938.12 |
+⚪ 比亚迪 (002594.SZ): 观望 | 评分 8 | 震荡｜建议第一观察买点：96.34；确认买点：102.55 |
+🔴 SOL (SOLUSDT): 卖出 | 评分 -52 | 看空｜反弹修复观察位：80.65 |
+⚪ ETH (ETHUSDT): 观望 | 评分 16 | 震荡｜建议第一观察买点：2021.5；确认买点：2091.08 |
+
+🌍 市场总览
+🇺🇸 美股整体
+📰 消息面: 建议重点结合美联储利率路径、就业与通胀数据、长端美债收益率，以及地缘局势对风险偏好的影响一起解读。
+📈 技术面: 美股整体偏震荡，当前更像结构分化而不是单边趋势。 当前基准篮子平均评分 0.0。
+```
+
+For a fuller walkthrough, see [docs/daily-recap.md](./docs/daily-recap.md).
 
 ## Daily Recap
 
@@ -355,6 +377,14 @@ Issues and pull requests are welcome, especially in these areas:
 - better portfolio- or basket-level monitoring
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for contribution guidelines and [CHANGELOG.md](./CHANGELOG.md) for release notes.
+
+## Documentation
+
+- [docs/README.md](./docs/README.md)
+- [docs/daily-recap.md](./docs/daily-recap.md)
+- [docs/data-sources.md](./docs/data-sources.md)
+- [docs/monitoring.md](./docs/monitoring.md)
+- [docs/privacy.md](./docs/privacy.md)
 
 ## Optional: Adapter Metadata
 
