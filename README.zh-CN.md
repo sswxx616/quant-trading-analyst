@@ -7,6 +7,7 @@
 - [快速开始](#快速开始)
 - [每日复盘](#每日复盘)
 - [监控与提醒](#监控与提醒)
+- [作为 Skill 使用](#作为-skill-使用)
 - [详细文档](./docs/README.md)
 - [贡献指南](./CONTRIBUTING.md)
 - [安全说明](./SECURITY.md)
@@ -223,3 +224,26 @@ python3 report_accuracy.py --format markdown
 - [docs/data-sources.md](./docs/data-sources.md)
 - [docs/monitoring.md](./docs/monitoring.md)
 - [docs/privacy.md](./docs/privacy.md)
+- [docs/skill-usage.md](./docs/skill-usage.md)
+
+## 作为 Skill 使用
+
+这个仓库不仅可以直接当脚本工具跑，也可以作为一个可复用的 Skill 包接入到支持仓库技能或提示词适配的 agent/runtime 里。
+
+仓库里已经包含：
+
+- `SKILL.md`
+- `agents/openai.yaml`
+- `scripts/` 下的实际执行入口
+
+通用接入方式：
+
+1. 克隆仓库
+2. 安装依赖
+3. 配置所需环境变量
+4. 把仓库或 `SKILL.md` 暴露给你的 runtime
+5. 让 runtime 能调用 `scripts/` 下的脚本
+
+如果你的 runtime 不支持 `SKILL.md`，也没关系，直接把这些脚本当成 skill 的执行入口来调用就可以。
+
+更完整的说明见 [docs/skill-usage.md](./docs/skill-usage.md)。

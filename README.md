@@ -13,6 +13,7 @@ Explainable stock and crypto market analysis, monitoring, and strategy-brief dai
 - [Quick Start](#quick-start)
 - [Daily Recap](#daily-recap)
 - [Monitoring](#monitoring)
+- [Use As A Skill](#use-as-a-skill)
 - [Docs](./docs/README.md)
 - [Contributing](./CONTRIBUTING.md)
 - [Security](./SECURITY.md)
@@ -385,12 +386,29 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for contribution guidelines and [CHANGE
 - [docs/data-sources.md](./docs/data-sources.md)
 - [docs/monitoring.md](./docs/monitoring.md)
 - [docs/privacy.md](./docs/privacy.md)
+- [docs/skill-usage.md](./docs/skill-usage.md)
 
-## Optional: Adapter Metadata
+## Use As A Skill
 
-You can use the scripts directly from the command line without any specific assistant runtime.
+This repository can be used as a reusable skill package, not just as a standalone script toolkit.
 
-If you want to plug the workflow into a higher-level automation or agent environment, the repository also includes optional adapter metadata such as `SKILL.md` and `agents/openai.yaml`. These files sit on top of the same CLI scripts and are not required for normal usage.
+It already includes:
+
+- `SKILL.md` for prompt-level skill instructions
+- `agents/openai.yaml` for optional adapter metadata
+- executable entry points under `scripts/`
+
+Generic setup flow:
+
+1. Clone the repository.
+2. Install dependencies from `requirements.txt`.
+3. Export the provider keys you need.
+4. Register the repository or expose `SKILL.md` to your runtime.
+5. Let the runtime invoke the scripts in `scripts/`.
+
+If your runtime does not support `SKILL.md`, you can still treat this repository as a skill by calling the same CLI entry points directly from your automation layer.
+
+See [docs/skill-usage.md](./docs/skill-usage.md) for the full setup pattern and example task prompts.
 
 ## Disclaimer
 
