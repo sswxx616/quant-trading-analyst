@@ -1,12 +1,21 @@
 # Quant Trading Analyst
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
+[![Status](https://img.shields.io/badge/status-actively%20maintained-2563eb.svg)](./CHANGELOG.md)
 [![Markets](https://img.shields.io/badge/markets-US%20stocks%20%7C%20A--shares%20%7C%20crypto-0a7ea4.svg)](./README.md#data-routing)
 [![Delivery](https://img.shields.io/badge/delivery-stdout%20%7C%20webhook%20%7C%20OpenClaw-2f855a.svg)](./README.md#openclaw-notifications)
 
 Explainable stock and crypto market analysis, monitoring, and strategy-brief daily recap generation for CLI, automation, and agent-driven workflows.
 
 [中文说明](./README.zh-CN.md)
+
+- [Quick Start](#quick-start)
+- [Daily Recap](#daily-recap)
+- [Monitoring](#monitoring)
+- [Contributing](./CONTRIBUTING.md)
+- [Security](./SECURITY.md)
+- [Changelog](./CHANGELOG.md)
 
 ## Overview
 
@@ -18,6 +27,14 @@ Explainable stock and crypto market analysis, monitoring, and strategy-brief dai
 - recording labeled outcomes and reviewing hit-rate trends over time
 
 The project is optimized for operational use. It favors deterministic logic, explicit trade levels, fallback data providers, and readable output over opaque model predictions.
+
+## Project Status
+
+`quant-trading-analyst` is an actively maintained open-source toolkit. The current focus is:
+
+- strengthening reliability across unstable market-data providers
+- improving market-context generation for recap workflows
+- keeping public examples safe, reproducible, and privacy-aware
 
 ## Why This Repository
 
@@ -60,6 +77,13 @@ Many market-analysis assistants produce narrative output that is difficult to au
 - Push Discord alerts through OpenClaw when a monitored asset reaches a configured level
 - Track whether prior signals resolved into wins, losses, or neutral outcomes
 
+## Who This Is For
+
+- traders or researchers who want transparent signal logic instead of black-box recommendations
+- operators who want scheduled recap and alert workflows
+- developers integrating market-analysis scripts into bots, agents, or automation systems
+- open-source contributors improving data routing, recap generation, and delivery tooling
+
 ## Architecture
 
 ### Data Routing
@@ -81,6 +105,7 @@ Many market-analysis assistants produce narrative output that is difficult to au
 | `scripts/report_accuracy.py` | hit-rate and outcome summary |
 | `scripts/update_learning.py` | store labeled outcomes |
 | `scripts/install_launchd_monitor.py` | macOS LaunchAgent installer |
+| `scripts/run_daily_recap_workflow.py` | refresh market context, then render and deliver the daily recap |
 
 ## Quick Start
 
@@ -104,6 +129,13 @@ cd scripts
 python3 analyze_asset.py --asset NVDA --market us-stock --timeframe 1d --format markdown
 python3 analyze_asset.py --asset 002594 --market cn-stock --timeframe 1d --format markdown
 python3 analyze_asset.py --asset ETH --market crypto --timeframe 4h --format markdown
+```
+
+Run the full recap workflow:
+
+```bash
+cd scripts
+python3 run_daily_recap_workflow.py --stdout-only
 ```
 
 ## Example Output
@@ -246,6 +278,13 @@ Inspect locally configured channels:
 openclaw channels list --json
 ```
 
+## Security And Privacy
+
+- tracked example files use placeholders instead of live delivery targets
+- local delivery settings should live in ignored files such as `*.local.json`
+- secrets should be passed through environment variables, not committed to the repository
+- if you discover an exposure issue, review [SECURITY.md](./SECURITY.md) before opening a public report
+
 ## Accuracy Reports
 
 Record a labeled outcome:
@@ -300,6 +339,12 @@ quant-trading-analyst/
 - The rule engine is technical-first and does not replace discretionary research
 - Open-source users should still validate data-provider terms and quotas for their own usage
 
+## Non-Goals
+
+- providing broker execution or order routing
+- replacing fundamental research, compliance review, or portfolio construction
+- guaranteeing returns or acting as personalized investment advice
+
 ## Contributing
 
 Issues and pull requests are welcome, especially in these areas:
@@ -309,11 +354,13 @@ Issues and pull requests are welcome, especially in these areas:
 - improved backtesting and evaluation tooling
 - better portfolio- or basket-level monitoring
 
-## Optional: Agent Runtime Integration
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for contribution guidelines and [CHANGELOG.md](./CHANGELOG.md) for release notes.
+
+## Optional: Adapter Metadata
 
 You can use the scripts directly from the command line without any specific assistant runtime.
 
-If you want to plug the workflow into a higher-level agent environment, the repository also includes adapter files such as `SKILL.md` and `agents/openai.yaml`. They are optional metadata layers on top of the same CLI scripts, not the core product itself.
+If you want to plug the workflow into a higher-level automation or agent environment, the repository also includes optional adapter metadata such as `SKILL.md` and `agents/openai.yaml`. These files sit on top of the same CLI scripts and are not required for normal usage.
 
 ## Disclaimer
 

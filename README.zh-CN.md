@@ -4,6 +4,13 @@
 
 [Back to English README](./README.md)
 
+- [快速开始](#快速开始)
+- [每日复盘](#每日复盘)
+- [监控与提醒](#监控与提醒)
+- [贡献指南](./CONTRIBUTING.md)
+- [安全说明](./SECURITY.md)
+- [更新记录](./CHANGELOG.md)
+
 ## 项目定位
 
 `quant-trading-analyst` 是一个面向命令行、自动化和 agent 工作流的开源工具包，核心目标是：
@@ -12,6 +19,14 @@
 - 输出可解释的交易结论和交易位，而不是只给方向判断
 - 生成适合频道推送的每日策略复盘
 - 支持监控、提醒、结果标注和命中率回顾
+
+## 项目状态
+
+项目当前处于持续维护中，重点方向包括：
+
+- 提高多数据源下的稳定性和回退能力
+- 增强 daily recap 的市场总览和上下文生成
+- 保持公开示例可运行、可复用、且不泄露个人信息
 
 ## 为什么做这个项目
 
@@ -41,6 +56,13 @@
 - 历史评估：
   支持交易结果标注和命中率报告
 
+## 适合谁用
+
+- 想看清楚量化逻辑，而不是只要黑箱结论的人
+- 需要把分析结果接进自动化、机器人或通知流程的人
+- 需要每日复盘、定时提醒、监控任务的人
+- 想给这个项目补数据源、回测或工作流能力的开发者
+
 ## 快速开始
 
 安装依赖：
@@ -63,6 +85,13 @@ cd scripts
 python3 analyze_asset.py --asset NVDA --market us-stock --timeframe 1d --format markdown
 python3 analyze_asset.py --asset 002594 --market cn-stock --timeframe 1d --format markdown
 python3 analyze_asset.py --asset ETH --market crypto --timeframe 4h --format markdown
+```
+
+一条命令跑完整 daily recap 工作流：
+
+```bash
+cd scripts
+python3 run_daily_recap_workflow.py --stdout-only
 ```
 
 ## 每日复盘
@@ -164,3 +193,10 @@ python3 report_accuracy.py --format markdown
 - 默认策略是技术分析优先，不替代人工研究
 - 不依赖某一个特定助手产品，直接运行脚本即可使用
 - 仓库内置 `SKILL.md` 和 `agents/openai.yaml` 等适配文件，但它们只是可选接入层，不是项目本体
+
+## 安全与隐私
+
+- 仓库里的示例配置使用占位符，不提交真实通知目标
+- 个人通知配置建议放在 `*.local.json` 这类被忽略的文件里
+- token 和密钥应通过环境变量传入，而不是写进仓库
+- 如果发现泄漏或隐私问题，建议先看 [SECURITY.md](./SECURITY.md)
