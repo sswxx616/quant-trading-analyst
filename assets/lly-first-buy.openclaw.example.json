@@ -1,0 +1,34 @@
+{
+  "id": "lly-first-buy-watch",
+  "asset": "LLY",
+  "market": "stock",
+  "timeframe": "1d",
+  "poll_seconds": 900,
+  "notifier": {
+    "type": "openclaw",
+    "channel": "discord",
+    "target": "channel:YOUR_CHANNEL_ID"
+  },
+  "rules": [
+    {
+      "name": "lly-enters-first-buy-zone",
+      "kind": "price_at_or_below",
+      "value": 910,
+      "cooldown_minutes": 180,
+      "title_cn": "礼来第一买点触发",
+      "title_en": "Lilly first buy zone triggered",
+      "position_suggestion_cn": "建议仓位：先建 25% 分批仓，若 900-910 区间止跌企稳，再加到 40%-50%。",
+      "position_suggestion_en": "Position sizing: start with a 25% scale-in position. If LLY stabilizes in the 900-910 area, add toward 40%-50%."
+    },
+    {
+      "name": "lly-reclaims-20dma-area",
+      "kind": "price_at_or_above",
+      "value": 938.12,
+      "cooldown_minutes": 240,
+      "title_cn": "礼来收复 20 日线区域",
+      "title_en": "Lilly reclaimed the 20-day moving-average area",
+      "position_suggestion_cn": "建议仓位：先建 20% 右侧确认仓，若继续站上并接近 50 日线，再扩大仓位。",
+      "position_suggestion_en": "Position sizing: start with a 20% right-side confirmation position, then add only if price keeps holding and pushes toward the 50-day average."
+    }
+  ]
+}

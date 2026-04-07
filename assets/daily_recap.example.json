@@ -1,0 +1,40 @@
+{
+  "title": "Daily Quant Recap",
+  "title_cn": "每日量化复盘",
+  "title_en": "Daily Quant Recap",
+  "timeframe": "1d",
+  "tushare_mode": "http",
+  "cache_ttl_hours": 72,
+  "assets": [
+    {
+      "asset": "NVDA",
+      "market": "us-stock",
+      "label": "英伟达"
+    },
+    {
+      "asset": "LLY",
+      "market": "us-stock",
+      "label": "礼来"
+    },
+    {
+      "asset": "002594",
+      "market": "cn-stock",
+      "label": "比亚迪"
+    },
+    {
+      "asset": "SOL",
+      "market": "crypto",
+      "timeframe": "4h",
+      "label": "SOL"
+    },
+    {
+      "asset": "ETH",
+      "market": "crypto",
+      "timeframe": "4h",
+      "label": "ETH"
+    }
+  ],
+  "notifier": {
+    "type": "stdout"
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "id": "btc-4h-bullish-watch",
+  "asset": "bitcoin",
+  "market": "crypto",
+  "timeframe": "4h",
+  "poll_seconds": 900,
+  "notifier": {
+    "type": "stdout"
+  },
+  "rules": [
+    {
+      "name": "score-turns-bullish",
+      "kind": "score_at_least",
+      "value": 45,
+      "cooldown_minutes": 240
+    },
+    {
+      "name": "btc-retests-support",
+      "kind": "price_at_or_below",
+      "value": 66000,
+      "cooldown_minutes": 120
+    },
+    {
+      "name": "recommendation-flips-to-risk-off",
+      "kind": "recommendation_changes_to",
+      "value": "reduce-or-tighten-risk",
+      "cooldown_minutes": 180
+    }
+  ]
+}

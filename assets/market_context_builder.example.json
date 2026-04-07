@@ -1,0 +1,65 @@
+{
+  "markets": {
+    "us_stock": {
+      "timeframe": "1d",
+      "assets": [
+        {
+          "asset": "SPY",
+          "market": "us-stock",
+          "label": "S&P 500 ETF"
+        },
+        {
+          "asset": "QQQ",
+          "market": "us-stock",
+          "label": "Nasdaq 100 ETF"
+        },
+        {
+          "asset": "IWM",
+          "market": "us-stock",
+          "label": "Russell 2000 ETF"
+        }
+      ]
+    },
+    "cn_stock": {
+      "timeframe": "1d",
+      "tushare_mode": "http",
+      "assets": [
+        {
+          "asset": "600519",
+          "market": "cn-stock",
+          "label": "贵州茅台"
+        },
+        {
+          "asset": "300750",
+          "market": "cn-stock",
+          "label": "宁德时代"
+        },
+        {
+          "asset": "002594",
+          "market": "cn-stock",
+          "label": "比亚迪"
+        }
+      ]
+    },
+    "crypto": {
+      "timeframe": "4h",
+      "assets": [
+        {
+          "asset": "BTC",
+          "market": "crypto",
+          "label": "BTC"
+        },
+        {
+          "asset": "ETH",
+          "market": "crypto",
+          "label": "ETH"
+        },
+        {
+          "asset": "SOL",
+          "market": "crypto",
+          "label": "SOL"
+        }
+      ]
+    }
+  }
+}

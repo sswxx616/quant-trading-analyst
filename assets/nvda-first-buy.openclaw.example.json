@@ -1,0 +1,44 @@
+{
+  "id": "nvda-first-buy-watch",
+  "asset": "NVDA",
+  "market": "stock",
+  "timeframe": "1d",
+  "poll_seconds": 900,
+  "notifier": {
+    "type": "openclaw",
+    "channel": "discord",
+    "target": "channel:YOUR_CHANNEL_ID"
+  },
+  "rules": [
+    {
+      "name": "nvda-enters-first-buy-zone",
+      "kind": "price_at_or_below",
+      "value": 177.6,
+      "cooldown_minutes": 180,
+      "title_cn": "英伟达第一买点触发",
+      "title_en": "NVIDIA first buy zone triggered",
+      "position_suggestion_cn": "建议仓位：先建 25% 试探仓，若回踩 176-178 区间不破，再加到 40%-50%。",
+      "position_suggestion_en": "Position sizing: start with a 25% starter position. If NVDA holds the 176-178 area on a retest, add toward 40%-50%."
+    },
+    {
+      "name": "nvda-turns-bullish",
+      "kind": "recommendation_changes_to",
+      "value": "watch-for-buy-confirmation",
+      "cooldown_minutes": 240,
+      "title_cn": "英伟达转入观察买入阶段",
+      "title_en": "NVIDIA shifted into buy-watch mode",
+      "position_suggestion_cn": "建议仓位：先建 15%-20% 观察仓，等下一根确认阳线或放量后再扩大仓位。",
+      "position_suggestion_en": "Position sizing: start with a 15%-20% pilot position, then size up only after a confirming follow-through bar or stronger volume."
+    },
+    {
+      "name": "nvda-breakout-buy-trigger",
+      "kind": "price_at_or_above",
+      "value": 188.88,
+      "cooldown_minutes": 240,
+      "title_cn": "英伟达突破买点触发",
+      "title_en": "NVIDIA breakout buy trigger fired",
+      "position_suggestion_cn": "建议仓位：先建 20% 突破仓，若收盘继续站上 188.88 并放量，再加到 40%-60%。",
+      "position_suggestion_en": "Position sizing: start with a 20% breakout position. If NVDA closes above 188.88 with volume confirmation, add toward 40%-60%."
+    }
+  ]
+}

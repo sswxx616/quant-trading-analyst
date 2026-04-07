@@ -1,0 +1,4 @@
+__pycache__/
+*.pyc
+assets/market_context.daily.json
+assets/*.local.json

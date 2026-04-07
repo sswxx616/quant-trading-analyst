@@ -1,0 +1,4 @@
+interface:
+  display_name: "Quant Trading Analyst"
+  short_description: "Analyze stocks and crypto with explainable quant signals"
+  default_prompt: "Analyze a stock or crypto symbol, explain the signal mix, and suggest evidence-based buy, sell, and monitoring levels."
