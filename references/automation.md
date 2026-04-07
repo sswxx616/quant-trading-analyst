@@ -1,6 +1,6 @@
 # Automation Guide
 
-This skill ships with a macOS LaunchAgent installer so monitoring can run in the background continuously.
+This repository includes a macOS LaunchAgent installer so monitoring can run in the background continuously.
 
 ## Why LaunchAgent
 

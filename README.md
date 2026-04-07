@@ -4,7 +4,7 @@
 [![Markets](https://img.shields.io/badge/markets-US%20stocks%20%7C%20A--shares%20%7C%20crypto-0a7ea4.svg)](./README.md#data-routing)
 [![Delivery](https://img.shields.io/badge/delivery-stdout%20%7C%20webhook%20%7C%20OpenClaw-2f855a.svg)](./README.md#openclaw-notifications)
 
-Explainable stock and crypto market analysis, monitoring, and strategy-brief daily recap generation for Codex workflows.
+Explainable stock and crypto market analysis, monitoring, and strategy-brief daily recap generation for CLI and agent workflows.
 
 [中文说明](./README.zh-CN.md)
 
@@ -309,9 +309,11 @@ Issues and pull requests are welcome, especially in these areas:
 - improved backtesting and evaluation tooling
 - better portfolio- or basket-level monitoring
 
-## Using As A Codex Skill
+## Optional: Use As A Codex Skill
 
-This repository ships with a `SKILL.md` entry point and can be installed into a local Codex skills directory if you want the workflow to be discoverable inside Codex.
+You can use the scripts directly from the command line without Codex.
+
+If you also want the workflow to be discoverable inside Codex, this repository ships with a `SKILL.md` entry point and can be installed into a local Codex skills directory.
 
 ## Disclaimer
 
