@@ -1,6 +1,6 @@
 ---
 name: quant-trading-analyst
-description: Analyze stocks and crypto assets with explainable quantitative trading signals, entry and exit levels, risk controls, and ongoing monitoring. Use when Codex is asked to evaluate a stock ticker, stock name, crypto ticker, or crypto name; compare buy and sell timing; explain why a setup looks bullish, bearish, or neutral; build watchlists; run evidence-based monitoring; or send alerts through stdout, webhooks, or OpenClaw channels.
+description: Analyze stocks and crypto assets with explainable quantitative trading signals, entry and exit levels, risk controls, and ongoing monitoring. Use when an agent or operator needs to evaluate a stock ticker, stock name, crypto ticker, or crypto name; compare buy and sell timing; explain why a setup looks bullish, bearish, or neutral; build watchlists; run evidence-based monitoring; or send alerts through stdout, webhooks, or OpenClaw channels.
 ---
 
 # Quant Trading Analyst

@@ -6,7 +6,7 @@
 
 ## 项目定位
 
-`quant-trading-analyst` 是一个面向命令行和 agent 工作流的开源工具包，核心目标是：
+`quant-trading-analyst` 是一个面向命令行、自动化和 agent 工作流的开源工具包，核心目标是：
 
 - 分析美股、A 股和数字货币
 - 输出可解释的交易结论和交易位，而不是只给方向判断
@@ -162,5 +162,5 @@ python3 report_accuracy.py --format markdown
 
 - 这是研究和自动化辅助工具，不是收益保证
 - 默认策略是技术分析优先，不替代人工研究
-- 不用 Codex 也可以直接运行这些脚本
-- 仓库内置 `SKILL.md`，如有需要也可以作为 Codex Skill 入口使用
+- 不依赖某一个特定助手产品，直接运行脚本即可使用
+- 仓库内置 `SKILL.md` 和 `agents/openai.yaml` 等适配文件，但它们只是可选接入层，不是项目本体

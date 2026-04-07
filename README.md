@@ -4,13 +4,13 @@
 [![Markets](https://img.shields.io/badge/markets-US%20stocks%20%7C%20A--shares%20%7C%20crypto-0a7ea4.svg)](./README.md#data-routing)
 [![Delivery](https://img.shields.io/badge/delivery-stdout%20%7C%20webhook%20%7C%20OpenClaw-2f855a.svg)](./README.md#openclaw-notifications)
 
-Explainable stock and crypto market analysis, monitoring, and strategy-brief daily recap generation for CLI and agent workflows.
+Explainable stock and crypto market analysis, monitoring, and strategy-brief daily recap generation for CLI, automation, and agent-driven workflows.
 
 [中文说明](./README.zh-CN.md)
 
 ## Overview
 
-`quant-trading-analyst` is an executable skill and script toolkit for:
+`quant-trading-analyst` is a script toolkit with optional agent-adapter files for:
 
 - analyzing US equities, A-shares, and crypto assets with a transparent rule-based strategy stack
 - generating recurring daily recap reports in a strategy-brief format
@@ -309,11 +309,11 @@ Issues and pull requests are welcome, especially in these areas:
 - improved backtesting and evaluation tooling
 - better portfolio- or basket-level monitoring
 
-## Optional: Use As A Codex Skill
+## Optional: Agent Runtime Integration
 
-You can use the scripts directly from the command line without Codex.
+You can use the scripts directly from the command line without any specific assistant runtime.
 
-If you also want the workflow to be discoverable inside Codex, this repository ships with a `SKILL.md` entry point and can be installed into a local Codex skills directory.
+If you want to plug the workflow into a higher-level agent environment, the repository also includes adapter files such as `SKILL.md` and `agents/openai.yaml`. They are optional metadata layers on top of the same CLI scripts, not the core product itself.
 
 ## Disclaimer
 
