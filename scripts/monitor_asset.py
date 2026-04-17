@@ -87,7 +87,26 @@ def default_position_suggestion(rule: dict, report: dict) -> tuple[str, str]:
     )
 
 
-def build_message(report: dict, rule: dict, reason: str) -> str:
+def entry_context(config: dict, rule: dict, report: dict) -> tuple[str, str]:
+    entry_price = rule.get("entry_price", config.get("entry_price"))
+    if entry_price in (None, ""):
+        return "", ""
+    try:
+        entry_value = float(entry_price)
+    except (TypeError, ValueError):
+        return "", ""
+    current_price = report["current_price"]
+    diff_value = current_price - entry_value
+    diff_pct = (diff_value / entry_value) * 100.0 if entry_value else 0.0
+    direction_cn = "浮盈" if diff_value >= 0 else "浮亏"
+    direction_en = "unrealized gain" if diff_value >= 0 else "unrealized loss"
+    return (
+        f"持仓参考：你的成本价 {entry_value:.2f} | 当前相对成本 {direction_cn} {diff_pct:+.2f}% ({diff_value:+.2f})",
+        f"Position context: your entry is {entry_value:.2f} | current {direction_en} {diff_pct:+.2f}% ({diff_value:+.2f})",
+    )
+
+
+def build_message(report: dict, config: dict, rule: dict, reason: str) -> str:
     levels = report["levels"]
     position_cn, position_en = default_position_suggestion(rule, report)
     position_cn = rule.get("position_suggestion_cn", position_cn)
@@ -96,19 +115,72 @@ def build_message(report: dict, rule: dict, reason: str) -> str:
     title_en = rule.get("title_en", rule.get("name", "trading alert"))
     reason_cn = rule.get("reason_cn", reason)
     reason_en = rule.get("reason_en", reason)
+    entry_cn, entry_en = entry_context(config, rule, report)
+    lines = [
+        "【交易信号】",
+        "[中文]",
+        f"{report['asset']['symbol']} {report['timeframe']} 提醒：{title_cn}",
+        f"当前价格：{report['current_price']} | 综合评分：{report['score']} | 当前判断：{recommendation_label(report['recommendation'])}",
+        f"第一买点：{levels['best_buy_level']} | 第一卖点：{levels['best_sell_level']} | 止损参考：{levels['stop_loss']}",
+    ]
+    if entry_cn:
+        lines.append(entry_cn)
+    lines.extend(
+        [
+            position_cn,
+            f"触发原因：{reason_cn}",
+            "",
+            "[Trading Signal]",
+            "[EN]",
+            f"{report['asset']['symbol']} {report['timeframe']} alert: {title_en}",
+            f"Current price: {report['current_price']} | Score: {report['score']} | View: {recommendation_label(report['recommendation'])}",
+            f"Best buy: {levels['best_buy_level']} | Best sell: {levels['best_sell_level']} | Stop: {levels['stop_loss']}",
+        ]
+    )
+    if entry_en:
+        lines.append(entry_en)
+    lines.extend([position_en, f"Trigger: {reason_en}"])
+    return "\n".join(lines)
+
+
+def detect_suspected_bad_data(config: dict, report: dict, previous: dict | None) -> tuple[bool, str]:
+    if previous is None:
+        return False, ""
+    previous_price = previous.get("current_price")
+    current_price = report.get("current_price")
+    if previous_price in (None, 0) or current_price in (None, 0):
+        return False, ""
+    try:
+        previous_value = float(previous_price)
+        current_value = float(current_price)
+    except (TypeError, ValueError):
+        return False, ""
+    max_deviation_pct = float(config.get("max_price_deviation_pct", 30))
+    deviation_pct = abs((current_value - previous_value) / previous_value) * 100.0
+    if deviation_pct <= max_deviation_pct:
+        return False, ""
     return (
-        f"[中文]\n"
-        f"{report['asset']['symbol']} {report['timeframe']} 提醒：{title_cn}\n"
-        f"当前价格：{report['current_price']} | 综合评分：{report['score']} | 当前判断：{recommendation_label(report['recommendation'])}\n"
-        f"第一买点：{levels['best_buy_level']} | 第一卖点：{levels['best_sell_level']} | 止损参考：{levels['stop_loss']}\n"
-        f"{position_cn}\n"
-        f"触发原因：{reason_cn}\n\n"
-        f"[EN]\n"
-        f"{report['asset']['symbol']} {report['timeframe']} alert: {title_en}\n"
-        f"Current price: {report['current_price']} | Score: {report['score']} | View: {recommendation_label(report['recommendation'])}\n"
-        f"Best buy: {levels['best_buy_level']} | Best sell: {levels['best_sell_level']} | Stop: {levels['stop_loss']}\n"
-        f"{position_en}\n"
-        f"Trigger: {reason_en}"
+        True,
+        f"suspected bad data: price moved from {previous_value:.2f} to {current_value:.2f} "
+        f"({deviation_pct:.2f}%), which is above the {max_deviation_pct:.2f}% threshold",
+    )
+
+
+def recap_cache_path(config: dict, tushare_mode: str) -> Path:
+    timeframe = config.get("timeframe", "1d")
+    market = config.get("market", "auto")
+    asset = config["asset"]
+    slug = f"{market}__{asset}__{timeframe}__{tushare_mode}".replace("/", "_").replace(" ", "_")
+    return Path.home() / ".quant-trading-analyst" / "recap_cache" / f"{slug}.json"
+
+
+def save_recap_cache(config: dict, report: dict, tushare_mode: str) -> None:
+    write_json(
+        recap_cache_path(config, tushare_mode),
+        {
+            "cached_at": int(time.time()),
+            "report": report,
+        },
     )
 
 
@@ -121,8 +193,11 @@ def main():
     monitor_id = config.get("id") or f"{config['market']}:{config['asset']}:{config.get('timeframe', '1d')}"
     previous = state["monitors"].get(monitor_id, {}).get("last_report")
     tushare_mode = args.tushare_mode or config.get("tushare_mode", "http")
+    startup_delay_seconds = int(config.get("startup_delay_seconds", 0))
 
     cycle = 0
+    if startup_delay_seconds > 0 and not args.once:
+        time.sleep(startup_delay_seconds)
     while True:
         cycle += 1
         try:
@@ -143,6 +218,26 @@ def main():
 
         now = int(time.time())
         monitor_entry = state["monitors"].setdefault(monitor_id, {"sent": {}, "last_report": None})
+        suspected_bad_data, bad_data_reason = detect_suspected_bad_data(config, report, previous)
+        if suspected_bad_data:
+            anomalies = monitor_entry.setdefault("suspected_data", [])
+            anomalies.append(
+                {
+                    "detected_at": now,
+                    "reason": bad_data_reason,
+                    "asset_symbol": report.get("asset", {}).get("symbol"),
+                    "current_price": report.get("current_price"),
+                    "previous_price": previous.get("current_price") if previous else None,
+                }
+            )
+            if len(anomalies) > 50:
+                del anomalies[:-50]
+            write_json(state_path, state)
+            print(f"[monitor-suspected-data] {config.get('asset')} {config.get('timeframe', '1d')}: {bad_data_reason}")
+            if args.once:
+                break
+            time.sleep(int(config.get("poll_seconds", 300)))
+            continue
         for rule in config.get("rules", []):
             fired, reason = should_fire(rule, report, previous)
             if not fired:
@@ -151,10 +246,13 @@ def main():
             last_sent = monitor_entry["sent"].get(rule["name"], 0)
             if now - last_sent < cooldown_seconds:
                 continue
-            message = build_message(report, rule, reason)
+            message = build_message(report, config, rule, reason)
             send_notification(config.get("notifier", {"type": "stdout"}), message, payload={"message": message, "report": report})
             monitor_entry["sent"][rule["name"]] = now
 
+        # Keep the recap cache warm with the latest good monitor snapshot so
+        # daily recaps can fall back to a recent report instead of a stale one.
+        save_recap_cache(config, report, tushare_mode)
         monitor_entry["last_report"] = report
         previous = report
         write_json(state_path, state)

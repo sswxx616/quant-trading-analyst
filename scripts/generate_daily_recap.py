@@ -9,6 +9,7 @@ from collections import defaultdict
 
 from quant_core import (
     analyze,
+    default_monitor_state_path,
     ensure_state_dir,
     load_json,
     recommendation_label,
@@ -92,6 +93,78 @@ def load_cached_report(item: dict, default_timeframe: str, default_tushare_mode:
     return report
 
 
+def market_matches(item_market: str, report_asset: dict) -> bool:
+    if item_market == "crypto":
+        return report_asset.get("market") == "crypto"
+    if item_market == "cn-stock":
+        return report_asset.get("market") == "stock" and report_asset.get("region") == "CN"
+    if item_market == "us-stock":
+        return report_asset.get("market") == "stock" and report_asset.get("region") != "CN"
+    return True
+
+
+def asset_matches(item: dict, report_asset: dict) -> bool:
+    requested = str(item["asset"]).strip().upper()
+    symbol = str(report_asset.get("symbol") or "").strip().upper()
+    display = str(report_asset.get("display_name") or "").strip().upper()
+    if requested == symbol or requested == display:
+        return True
+    if item.get("market") == "cn-stock":
+        requested_code = requested.split(".", 1)[0]
+        symbol_code = symbol.split(".", 1)[0]
+        return requested_code == symbol_code
+    if item.get("market") == "crypto" and requested and symbol:
+        normalized_requested = requested.replace("USDT", "")
+        return symbol.startswith(normalized_requested)
+    return False
+
+
+def load_monitor_fallback_report(item: dict, default_timeframe: str, ttl_hours: int) -> dict | None:
+    state = load_json(default_monitor_state_path(), {"monitors": {}})
+    timeframe = item.get("timeframe", default_timeframe)
+    market = item.get("market", "auto")
+    now = int(datetime.now().timestamp())
+    best_report = None
+    best_generated_at = 0
+    for monitor in state.get("monitors", {}).values():
+        report = monitor.get("last_report")
+        if not report:
+            continue
+        generated_at = int(report.get("generated_at") or 0)
+        if not generated_at or (now - generated_at) > ttl_hours * 3600:
+            continue
+        if report.get("timeframe") != timeframe:
+            continue
+        asset = report.get("asset", {})
+        if not market_matches(market, asset):
+            continue
+        if not asset_matches(item, asset):
+            continue
+        if generated_at > best_generated_at:
+            best_generated_at = generated_at
+            best_report = json.loads(json.dumps(report))
+    if best_report is None:
+        return None
+    age_seconds = now - best_generated_at
+    best_report["recap_status"] = "monitor-cache"
+    best_report["recap_cache_age_hours"] = round(age_seconds / 3600.0, 1)
+    return best_report
+
+
+def prefer_monitor_snapshot(item: dict, config: dict) -> bool:
+    if "prefer_monitor_snapshot" in item:
+        return bool(item["prefer_monitor_snapshot"])
+    return bool(config.get("prefer_monitor_snapshot", False))
+
+
+def monitor_snapshot_ttl_hours(item: dict, config: dict, default_ttl_hours: int) -> int:
+    if item.get("prefer_monitor_snapshot_max_age_hours") is not None:
+        return int(item["prefer_monitor_snapshot_max_age_hours"])
+    if config.get("prefer_monitor_snapshot_max_age_hours") is not None:
+        return int(config["prefer_monitor_snapshot_max_age_hours"])
+    return default_ttl_hours
+
+
 def save_cached_report(item: dict, report: dict, default_timeframe: str, default_tushare_mode: str) -> None:
     path = recap_cache_path(item, default_timeframe, default_tushare_mode)
     write_json(
@@ -110,6 +183,12 @@ def report_origin_label(report: dict) -> tuple[str, str]:
         return (
             f"缓存回退，缓存年龄约 {age} 小时",
             f"cached fallback, cache age about {age}h",
+        )
+    if status == "monitor-cache":
+        age = report.get("recap_cache_age_hours")
+        return (
+            f"监控快照回退，快照年龄约 {age} 小时",
+            f"monitor snapshot fallback, snapshot age about {age}h",
         )
     return ("实时分析", "live analysis")
 
@@ -287,7 +366,7 @@ def collect_catalysts(successes: list[dict]) -> list[str]:
 
 
 def latest_dynamic(successes: list[dict], failures: list[dict]) -> str:
-    cached_assets = [display_label(report) for report in successes if report.get("recap_status") == "cached"]
+    cached_assets = [display_label(report) for report in successes if report.get("recap_status") in {"cached", "monitor-cache"}]
     if cached_assets:
         return f"【最新动态】本次复盘中 {', '.join(cached_assets)} 使用了最近缓存结果，说明对应实时数据源当下不可用或受限。"
     if not successes:
@@ -367,7 +446,7 @@ def derived_market_technical(reports: list[dict]) -> str:
 
 
 def derived_market_latest(reports: list[dict]) -> str:
-    cached_assets = [display_label(report) for report in reports if report.get("recap_status") == "cached"]
+    cached_assets = [display_label(report) for report in reports if report.get("recap_status") in {"cached", "monitor-cache"}]
     if cached_assets:
         return f"本市场中 {', '.join(cached_assets)} 使用了缓存结果，说明对应实时数据源当前受限。"
     candidate = max(reports, key=lambda report: abs(report.get("price_change_5_bars_pct") or 0))
@@ -421,6 +500,7 @@ def render_report(config: dict, generated_at: datetime, successes: list[dict], f
         counts[action_bucket(report)] += 1
     grouped_reports = market_reports(successes)
     lines = [
+        "【每日复盘】",
         f"{date_label} 策略建议",
         f"共分析{len(successes)}个标的 | 🟢买入:{counts['buy']} 🟡观望:{counts['watch']} 🔴卖出:{counts['sell']}",
         "",
@@ -464,6 +544,17 @@ def main():
     for item in config.get("assets", []):
         asset_query = item["asset"]
         try:
+            if prefer_monitor_snapshot(item, config):
+                snapshot_report = load_monitor_fallback_report(
+                    item,
+                    default_timeframe,
+                    monitor_snapshot_ttl_hours(item, config, cache_ttl_hours),
+                )
+                if snapshot_report is not None:
+                    if item.get("label"):
+                        snapshot_report["asset"] = {**snapshot_report["asset"], "recap_label": item["label"]}
+                    successes.append(snapshot_report)
+                    continue
             report = analyze(
                 asset_query=asset_query,
                 market=item.get("market", "auto"),
@@ -477,7 +568,9 @@ def main():
             save_cached_report(item, report, default_timeframe, tushare_mode)
             successes.append(report)
         except Exception as error:
-            cached_report = load_cached_report(item, default_timeframe, tushare_mode, cache_ttl_hours)
+            cached_report = load_monitor_fallback_report(item, default_timeframe, cache_ttl_hours)
+            if cached_report is None:
+                cached_report = load_cached_report(item, default_timeframe, tushare_mode, cache_ttl_hours)
             if cached_report is not None:
                 if item.get("label"):
                     cached_report["asset"] = {**cached_report["asset"], "recap_label": item["label"]}

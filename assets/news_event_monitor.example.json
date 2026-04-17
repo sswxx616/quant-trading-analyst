@@ -1,0 +1,159 @@
+{
+  "id": "core-news-event-watch",
+  "poll_seconds": 900,
+  "seed_existing_news": true,
+  "bootstrap_send_limit": 0,
+  "notifier": {
+    "type": "openclaw",
+    "channel": "discord",
+    "target": "channel:YOUR_CHANNEL_ID"
+  },
+  "macro_watch": [
+    {
+      "name": "middle-east-risk",
+      "label_cn": "中东局势",
+      "label_en": "Middle East risk",
+      "material_keywords": [
+        "israel",
+        "lebanon",
+        "iran",
+        "strike",
+        "attack",
+        "bombing",
+        "ceasefire",
+        "oil"
+      ],
+      "queries": [
+        "Israel Lebanon Iran strike attack ceasefire oil markets when:7d",
+        "Middle East oil inflation markets Reuters AP when:7d"
+      ],
+      "summary_cn": "这类地缘事件会先影响油价、通胀预期和风险偏好，再传导到半导体和成长股估值。",
+      "summary_en": "These geopolitical shocks usually move oil, inflation expectations, and risk appetite first, then flow into semiconductor and growth-stock valuations.",
+      "affected_assets": [
+        "NVDA",
+        "TSM",
+        "LLY"
+      ]
+    },
+    {
+      "name": "fed-rates-risk",
+      "label_cn": "美联储与利率预期",
+      "label_en": "Fed and rate expectations",
+      "material_keywords": [
+        "federal reserve",
+        "fed",
+        "rate cut",
+        "rate hike",
+        "inflation",
+        "cpi",
+        "pce",
+        "payrolls",
+        "powell"
+      ],
+      "queries": [
+        "Federal Reserve Powell CPI inflation rate cut rate hike markets when:7d",
+        "US inflation payrolls treasury yields stocks when:7d"
+      ],
+      "summary_cn": "利率和通胀预期变化会直接影响成长股估值。",
+      "summary_en": "Changes in rate and inflation expectations directly affect growth-stock valuations.",
+      "affected_assets": [
+        "NVDA",
+        "TSM",
+        "LLY"
+      ]
+    }
+  ],
+  "assets": [
+    {
+      "asset": "NVDA",
+      "market": "us-stock",
+      "timeframe": "1d",
+      "label": "英伟达 / NVIDIA",
+      "material_keywords": [
+        "earnings",
+        "results",
+        "guidance",
+        "keynote",
+        "launch",
+        "blackwell",
+        "nvlink",
+        "conference",
+        "investor",
+        "restriction",
+        "export"
+      ],
+      "news_queries": [
+        "site:nvidianews.nvidia.com NVIDIA launch OR keynote OR platform OR Blackwell when:30d",
+        "site:investor.nvidia.com NVIDIA earnings OR results OR conference call when:60d"
+      ],
+      "manual_events": []
+    },
+    {
+      "asset": "LLY",
+      "market": "us-stock",
+      "timeframe": "1d",
+      "label": "礼来 / Eli Lilly",
+      "material_keywords": [
+        "earnings",
+        "approval",
+        "fda",
+        "trial",
+        "phase",
+        "obesity",
+        "orforglipron",
+        "retatrutide",
+        "conference"
+      ],
+      "news_queries": [
+        "site:investor.lilly.com Eli Lilly earnings OR approval OR trial OR conference when:30d"
+      ],
+      "manual_events": [
+        {
+          "id": "lly-q1-2026-earnings-call",
+          "title": "Lilly Q1 2026 earnings call",
+          "title_cn": "礼来 2026 年一季度财报电话会",
+          "title_en": "Lilly Q1 2026 earnings call",
+          "start_at": "2026-04-30T10:00:00-04:00",
+          "url": "https://investor.lilly.com/events/event-details/q1-2026-earnings-call",
+          "impact_cn": "财报和管理层指引会明显影响礼来的短中期波动；如果减重药销售、产能和后续指引超预期，通常偏利好，反之偏风险。",
+          "impact_en": "The earnings call and management guidance can materially move Lilly. Strong obesity-drug sales, capacity commentary, and upbeat guidance are bullish; weaker commentary is a risk.",
+          "notify_days_before": [30, 14, 7, 3, 1]
+        }
+      ]
+    },
+    {
+      "asset": "TSM",
+      "market": "us-stock",
+      "timeframe": "1d",
+      "label": "台积电 / TSMC",
+      "material_keywords": [
+        "earnings",
+        "results",
+        "revenue report",
+        "monthly revenue",
+        "guidance",
+        "capex",
+        "cowos",
+        "foundry",
+        "investor"
+      ],
+      "news_queries": [
+        "site:pr.tsmc.com TSMC revenue OR earnings OR investor when:30d",
+        "site:pr.tsmc.com/english/news TSMC monthly revenue when:60d"
+      ],
+      "manual_events": [
+        {
+          "id": "tsm-q1-2026-results",
+          "title": "TSMC 1Q 2026 earnings conference",
+          "title_cn": "台积电 2026 年一季度法说会",
+          "title_en": "TSMC 1Q 2026 earnings conference",
+          "start_at": "2026-04-16T14:00:00+08:00",
+          "url": "https://pr.tsmc.com/english/events/investor-meetings",
+          "impact_cn": "台积电财报和指引会直接影响全球 AI 半导体链预期；若先进制程、CoWoS、产能利用率和资本开支口径偏强，通常利好。",
+          "impact_en": "TSMC results and guidance directly shape expectations for the global AI semiconductor chain. Strong commentary on advanced nodes, CoWoS, utilization, and capex is usually bullish.",
+          "notify_days_before": [30, 14, 7, 3, 1]
+        }
+      ]
+    }
+  ]
+}

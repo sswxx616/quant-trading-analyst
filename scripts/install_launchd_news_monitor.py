@@ -13,10 +13,10 @@ from quant_core import ensure_state_dir
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Install or remove a macOS LaunchAgent for 24/7 quant monitor execution."
+        description="Install or remove a macOS LaunchAgent for the news/event monitor."
     )
-    parser.add_argument("--config", help="Path to monitor config JSON.")
-    parser.add_argument("--label", required=True, help="LaunchAgent label, for example ai.quant.trading.btc.")
+    parser.add_argument("--config", help="Path to the news/event monitor config JSON.")
+    parser.add_argument("--label", required=True, help="LaunchAgent label, for example ai.quant.trading.news-live.")
     parser.add_argument("--load", action="store_true", help="Load the LaunchAgent after writing it.")
     parser.add_argument("--remove", action="store_true", help="Unload and remove the LaunchAgent.")
     parser.add_argument("--print-plist", action="store_true", help="Print the plist path after creation.")
@@ -34,46 +34,13 @@ def log_paths(label: str) -> tuple[Path, Path]:
     return log_dir / f"{safe}.out.log", log_dir / f"{safe}.err.log"
 
 
-def load_env_file(path: Path) -> dict[str, str]:
-    loaded: dict[str, str] = {}
-    if not path.exists():
-        return loaded
-    for raw_line in path.read_text().splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#"):
-            continue
-        if line.startswith("export "):
-            line = line[7:].strip()
-        if "=" not in line:
-            continue
-        key, value = line.split("=", 1)
-        key = key.strip()
-        value = value.strip().strip("'").strip('"')
-        if key:
-            loaded[key] = value
-    return loaded
-
-
-def runtime_env_overrides(script_dir: Path) -> dict[str, str]:
-    env: dict[str, str] = {}
-    for candidate in (
-        (script_dir.parent / ".env.local").resolve(),
-        (script_dir.parent / "assets" / "runtime.env.local").resolve(),
-    ):
-        env.update(load_env_file(candidate))
-    return env
-
-
 def build_plist(label: str, config_path: Path) -> dict:
     script_dir = Path(__file__).resolve().parent
-    monitor_script = script_dir / "monitor_asset.py"
+    monitor_script = script_dir / "monitor_news_events.py"
     stdout_log, stderr_log = log_paths(label)
-    env_overrides = runtime_env_overrides(script_dir)
-    env_vars = {
-        "PATH": os.environ.get("PATH", ""),
-    }
+    env_vars = {"PATH": os.environ.get("PATH", "")}
     for key in ("TWELVEDATA_API_KEY", "TUSHARE_TOKEN", "QUANT_SKILL_HOME"):
-        value = os.environ.get(key) or env_overrides.get(key)
+        value = os.environ.get(key)
         if value:
             env_vars[key] = value
     return {
@@ -100,12 +67,7 @@ def run_launchctl(*args: str) -> None:
 def remove_job(label: str) -> None:
     path = plist_path(label)
     if path.exists():
-        subprocess.run(
-            ["launchctl", "unload", str(path)],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
+        subprocess.run(["launchctl", "unload", str(path)], check=False, capture_output=True, text=True)
         path.unlink()
         print(f"Removed {path}")
     else:

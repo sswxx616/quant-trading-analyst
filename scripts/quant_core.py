@@ -157,6 +157,15 @@ def is_tushare_permission_error(error: Exception) -> bool:
     return "没有接口访问权限" in str(error) or "doc_id=108" in message or "permission" in message
 
 
+def is_rate_limit_error(error: Exception) -> bool:
+    message = str(error).lower()
+    if "too many requests" in message or "rate limit" in message or "429" in message:
+        return True
+    if isinstance(error, urllib.error.HTTPError) and error.code == 429:
+        return True
+    return False
+
+
 def safe_float(value, default: float = 0.0) -> float:
     if value in (None, "", "None"):
         return default
@@ -669,8 +678,9 @@ def resolve_cn_stock_symbol(query: str, tushare_mode: str = "http") -> dict:
 def resolve_stock_symbol(query: str) -> dict:
     query = query.strip()
     td = get_twelvedata_client()
+    exact_symbol = query.upper()
     ticker_like = (
-        query.upper() == query
+        exact_symbol == query
         and query.replace(".", "").replace("-", "").isalnum()
         and " " not in query
         and len(query) <= 8
@@ -678,26 +688,25 @@ def resolve_stock_symbol(query: str) -> dict:
     if ticker_like:
         if td is not None:
             try:
-                payload = td.quote(symbol=query.upper()).as_json()
+                payload = td.quote(symbol=exact_symbol).as_json()
                 return {
                     "market": "stock",
                     "region": "US",
                     "source": "twelvedata",
-                    "symbol": payload.get("symbol", query.upper()),
-                    "display_name": payload.get("name") or payload.get("symbol", query.upper()),
+                    "symbol": payload.get("symbol", exact_symbol),
+                    "display_name": payload.get("name") or payload.get("symbol", exact_symbol),
                     "exchange": payload.get("exchange"),
                 }
-            except Exception:
-                pass
-        else:
-            return {
-                "market": "stock",
-                "region": "US",
-                "source": "ticker-input",
-                "symbol": query.upper(),
-                "display_name": query.upper(),
-                "exchange": None,
-            }
+            except Exception as error:
+                if is_rate_limit_error(error):
+                    return {
+                        "market": "stock",
+                        "region": "US",
+                        "source": "ticker-input",
+                        "symbol": exact_symbol,
+                        "display_name": exact_symbol,
+                        "exchange": None,
+                    }
     if td is not None:
         try:
             payload = td.symbol_search(symbol=query).as_json()
@@ -707,6 +716,19 @@ def resolve_stock_symbol(query: str) -> dict:
                 if item.get("instrument_type") in {"Common Stock", "ETF", "Index"}
             ]
             if candidates:
+                if ticker_like:
+                    exact_candidates = [item for item in candidates if (item.get("symbol") or "").upper() == exact_symbol]
+                    if exact_candidates:
+                        candidates = exact_candidates
+                    else:
+                        return {
+                            "market": "stock",
+                            "region": "US",
+                            "source": "ticker-input",
+                            "symbol": exact_symbol,
+                            "display_name": exact_symbol,
+                            "exchange": None,
+                        }
                 us_candidates = [
                     item
                     for item in candidates
@@ -719,53 +741,112 @@ def resolve_stock_symbol(query: str) -> dict:
                     "market": "stock",
                     "region": "US",
                     "source": "twelvedata",
-                    "symbol": best.get("symbol", query.upper()),
-                    "display_name": best.get("instrument_name") or best.get("symbol", query.upper()),
+                    "symbol": best.get("symbol", exact_symbol),
+                    "display_name": best.get("instrument_name") or best.get("symbol", exact_symbol),
                     "exchange": best.get("exchange"),
                 }
-        except Exception:
-            pass
+        except Exception as error:
+            if ticker_like and is_rate_limit_error(error):
+                return {
+                    "market": "stock",
+                    "region": "US",
+                    "source": "ticker-input",
+                    "symbol": exact_symbol,
+                    "display_name": exact_symbol,
+                    "exchange": None,
+                }
     api_key = os.environ.get("TWELVEDATA_API_KEY", "demo")
     search_url = f"https://api.twelvedata.com/symbol_search?symbol={urllib.parse.quote(query)}&apikey={api_key}"
     encoded = urllib.parse.quote(query)
     yahoo_search_url = f"https://query1.finance.yahoo.com/v1/finance/search?q={encoded}&quotesCount=8&newsCount=0"
     try:
         payload = fetch_json(search_url, headers=YAHOO_HEADERS)
+        candidates = []
         for item in payload.get("data", []):
             if item.get("instrument_type") not in {"Common Stock", "ETF", "Index"}:
                 continue
+            candidates.append(item)
+        if candidates:
+            if ticker_like:
+                exact_candidates = [item for item in candidates if (item.get("symbol") or "").upper() == exact_symbol]
+                if exact_candidates:
+                    candidates = exact_candidates
+                else:
+                    return {
+                        "market": "stock",
+                        "region": "US",
+                        "source": "ticker-input",
+                        "symbol": exact_symbol,
+                        "display_name": exact_symbol,
+                        "exchange": None,
+                    }
+            item = candidates[0]
             return {
                 "market": "stock",
                 "region": "US",
                 "source": "twelvedata-http",
-                "symbol": item.get("symbol", query.upper()),
-                "display_name": item.get("instrument_name") or item.get("symbol", query.upper()),
+                "symbol": item.get("symbol", exact_symbol),
+                "display_name": item.get("instrument_name") or item.get("symbol", exact_symbol),
                 "exchange": item.get("exchange"),
             }
-    except Exception:
-        pass
+    except Exception as error:
+        if ticker_like and is_rate_limit_error(error):
+            return {
+                "market": "stock",
+                "region": "US",
+                "source": "ticker-input",
+                "symbol": exact_symbol,
+                "display_name": exact_symbol,
+                "exchange": None,
+            }
     try:
         payload = fetch_json(yahoo_search_url, headers=YAHOO_HEADERS)
+        candidates = []
         for item in payload.get("quotes", []):
             quote_type = (item.get("quoteType") or "").upper()
             if quote_type not in {"EQUITY", "ETF", "MUTUALFUND", "INDEX"}:
                 continue
+            candidates.append(item)
+        if candidates:
+            if ticker_like:
+                exact_candidates = [item for item in candidates if (item.get("symbol") or "").upper() == exact_symbol]
+                if exact_candidates:
+                    candidates = exact_candidates
+                else:
+                    return {
+                        "market": "stock",
+                        "region": "US",
+                        "source": "ticker-input",
+                        "symbol": exact_symbol,
+                        "display_name": exact_symbol,
+                        "exchange": None,
+                    }
+            item = candidates[0]
             return {
                 "market": "stock",
                 "region": "US",
                 "source": "yahoo",
-                "symbol": item.get("symbol", query.upper()),
-                "display_name": item.get("shortname") or item.get("longname") or item.get("symbol", query.upper()),
+                "symbol": item.get("symbol", exact_symbol),
+                "display_name": item.get("shortname") or item.get("longname") or item.get("symbol", exact_symbol),
                 "exchange": item.get("exchange"),
             }
     except Exception:
         pass
+    if ticker_like:
+        return {
+            "market": "stock",
+            "region": "US",
+            "source": "ticker-input",
+            "symbol": exact_symbol,
+            "display_name": exact_symbol,
+            "exchange": None,
+        }
     return {
         "market": "stock",
         "region": "US",
         "source": "fallback",
-        "symbol": query.upper(),
-        "display_name": query.upper(),
+        "symbol": exact_symbol,
+        "display_name": exact_symbol,
         "exchange": None,
     }
 
@@ -844,8 +925,9 @@ def fetch_stock_candles(symbol: str, timeframe: str) -> list[dict]:
                         }
                     )
                 return candles
-        except Exception:
-            pass
+        except Exception as error:
+            if is_rate_limit_error(error):
+                raise
 
     api_key = os.environ.get("TWELVEDATA_API_KEY", "demo")
     if interval:
@@ -870,8 +952,9 @@ def fetch_stock_candles(symbol: str, timeframe: str) -> list[dict]:
                         }
                     )
                 return candles
-        except Exception:
-            pass
+        except Exception as error:
+            if is_rate_limit_error(error):
+                raise
 
     interval = normalize_interval(timeframe, "stock")
     price_range = "60d" if interval == "60m" else "1y"

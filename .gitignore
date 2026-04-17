@@ -1,4 +1,8 @@
 __pycache__/
 *.pyc
+.env.local
 assets/market_context.daily.json
+assets/*.rendered.md
 assets/*.local.json
+assets/*.env.local
+scripts/assets/*.daily.json

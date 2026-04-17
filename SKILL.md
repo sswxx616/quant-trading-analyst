@@ -36,6 +36,30 @@ Generate a watchlist recap:
 python3 scripts/generate_daily_recap.py --config assets/daily_recap.example.json
 ```
 
+Scan Binance crypto top gainers, then run quant analysis on the strongest movers:
+
+```bash
+python3 scripts/scan_crypto_movers.py --config assets/crypto_movers.example.json
+```
+
+Generate OpenAlice-inspired staged crypto trade plans without automatic execution:
+
+```bash
+python3 scripts/generate_crypto_trade_plan.py --config assets/crypto_trade_plan.example.json
+```
+
+Generate early altcoin anomaly plans from short-term momentum, relative volume, and futures sentiment:
+
+```bash
+python3 scripts/generate_crypto_anomaly_plan.py --config assets/crypto_anomaly_plan.example.json
+```
+
+Review which anomaly factors have been working over recent 6h and 24h horizons:
+
+```bash
+python3 scripts/report_crypto_anomaly_factors.py
+```
+
 Build market-wide recap context first, then inject it into the recap run:
 
 ```bash

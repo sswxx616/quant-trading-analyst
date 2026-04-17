@@ -32,6 +32,14 @@ cd scripts
 python3 run_daily_recap_workflow.py --stdout-only
 ```
 
+For unattended automation runs, place runtime secrets in a local ignored env file first:
+
+```bash
+cp assets/runtime.env.example .env.local
+```
+
+The workflow loader will automatically read `.env.local` or `assets/runtime.env.local` before it spawns `build_market_context.py` and `generate_daily_recap.py`.
+
 ## Market Context Workflow
 
 There are two ways to populate the market-overview section:
@@ -77,4 +85,5 @@ python3 generate_daily_recap.py \
 
 - tracked example configs should use placeholders, not live delivery targets
 - local delivery settings should live in ignored files such as `*.local.json`
+- local runtime secrets should live in ignored files such as `.env.local` or `assets/runtime.env.local`
 - for reproducible automated runs, refresh the market-context file shortly before recap generation

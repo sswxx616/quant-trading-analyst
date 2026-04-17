@@ -80,6 +80,14 @@ export TWELVEDATA_API_KEY="你的 Twelve Data Key"
 export TUSHARE_TOKEN="你的 Tushare Token"
 ```
 
+如果是自动化跑 daily recap，建议把本地密钥放到忽略文件里：
+
+```bash
+cp assets/runtime.env.example .env.local
+```
+
+`scripts/run_daily_recap_workflow.py` 会在启动 market context 和 recap 子进程前，自动加载 `.env.local` 或 `assets/runtime.env.local`。
+
 单次分析：
 
 ```bash
@@ -87,6 +95,10 @@ cd scripts
 python3 analyze_asset.py --asset NVDA --market us-stock --timeframe 1d --format markdown
 python3 analyze_asset.py --asset 002594 --market cn-stock --timeframe 1d --format markdown
 python3 analyze_asset.py --asset ETH --market crypto --timeframe 4h --format markdown
+python3 scan_crypto_movers.py --config ../assets/crypto_movers.example.json
+python3 generate_crypto_trade_plan.py --config ../assets/crypto_trade_plan.example.json
+python3 generate_crypto_anomaly_plan.py --config ../assets/crypto_anomaly_plan.example.json
+python3 report_crypto_anomaly_factors.py
 ```
 
 一条命令跑完整 daily recap 工作流：
@@ -182,6 +194,104 @@ python3 install_launchd_monitor.py \
   --label ai.quant.trading.sample \
   --load
 ```
+
+### 数字货币涨幅榜追踪
+
+如果你想让策略自动盯 Binance 数字货币涨幅榜，并抓出最近疯涨、但量化上还值得继续看的币种，可以直接用：
+
+```bash
+cd scripts
+python3 scan_crypto_movers.py --config ../assets/crypto_movers.example.json
+```
+
+这个扫描器会做四步：
+
+- 抓 Binance `24h` 涨幅榜
+- 过滤稳定币类符号和杠杆代币
+- 按最小成交额、最小涨幅筛掉噪音币
+- 对筛出来的前几名再跑现有量化引擎，输出更像“涨幅榜里哪些还值得看”
+
+默认示例适合拿来追踪像 `ORDI` 这种突然爆发的币种，但不会只看涨幅，还会一起看：
+
+- 当前评分
+- 是继续追踪、等确认，还是已经不适合追
+- 观察买点、确认位、第一卖点
+
+示例配置在这里：
+
+- [`assets/crypto_movers.example.json`](./assets/crypto_movers.example.json)
+
+如果你要发到 Discord、Telegram 或别的渠道，建议复制成你自己的本地忽略文件，再把 `notifier` 改成 OpenClaw 或 webhook 版本。
+
+### 数字货币交易计划
+
+如果你不想直接自动下单，而是希望系统像 OpenAlice 那样先生成一份“计划单”，再发到频道里给你确认，可以直接用：
+
+```bash
+cd scripts
+python3 generate_crypto_trade_plan.py --config ../assets/crypto_trade_plan.example.json
+```
+
+这套计划单能力会：
+
+- 先扫 Binance 现货涨幅榜
+- 用你现有的量化引擎复核这些强势币
+- 不直接给执行指令，而是生成 staged trade plan
+- 只把计划推到频道，不自动下单
+- 可以只在“新强势币第一次进入合格计划集合”时才推送
+
+每份计划里会包含：
+
+- 当前适合试探仓、等突破、等回踩，还是只观察
+- 观察买点和确认位
+- 第一卖点
+- 防守线和止损失效位
+
+如果你只想在发现“新强势币且符合计划条件”时推送，把配置里的 `"notify_new_only"` 设成 `true`。这样同一个币只会在首次进入合格计划集合时提醒，后面只要它还一直待在集合里，就不会重复刷屏；等它掉出去、以后又重新进入时，才会再提醒。
+
+### 山寨币异动雷达
+
+如果你想比单纯的 `24h` 涨幅榜更早抓到异动山寨币，可以直接用这层“异动雷达”：
+
+```bash
+cd scripts
+python3 generate_crypto_anomaly_plan.py --config ../assets/crypto_anomaly_plan.example.json
+```
+
+这层能力借鉴了更强的开源扫描器思路，但仍然保持你的项目风格：
+
+- 同时看 `15m` 和 `1h` 动量
+- 看短周期相对成交量是否突然放大
+- 能取到的话，再叠加 Binance 合约的 `funding` 和 `open interest`
+- 最后仍然要通过你本地量化引擎过滤，才会生成计划单
+- 配上 `"notify_new_only": true` 后，只会在“新异动币第一次进入合格集合”时推送
+
+示例配置：
+
+- [`assets/crypto_anomaly_plan.example.json`](./assets/crypto_anomaly_plan.example.json)
+
+这层雷达每次运行时，还会自动记录一份轻量级“因子快照”。你可以像 `finhack` 一样，回头看哪些异动特征更靠谱：
+
+```bash
+cd scripts
+python3 report_crypto_anomaly_factors.py
+```
+
+这份报告会基于后续快照，估算合格信号在未来 `6h / 24h` 的平均收益和胜率，并按这些维度拆开看：
+
+- 异动分数区间
+- 15 分钟量比
+- 1 小时动量
+- OI 是否同步增长
+- 资金费率是否过热
+- 最终生成的计划动作类型
+- 初始仓位建议和最大仓位上限
+
+示例配置在这里：
+
+- [`assets/crypto_trade_plan.example.json`](./assets/crypto_trade_plan.example.json)
+
+如果你要直接发到自己的 Discord 频道，可以像现在其他本地配置一样，复制成 `.local.json` 文件再改通知目标。
 
 ## 命中率报告
 

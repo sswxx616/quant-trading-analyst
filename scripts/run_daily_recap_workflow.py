@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -35,6 +36,10 @@ def parse_args():
     )
     parser.add_argument("--output", help="Optional path to save the rendered daily recap.")
     parser.add_argument(
+        "--env-file",
+        help="Optional local env file with runtime secrets such as TWELVEDATA_API_KEY.",
+    )
+    parser.add_argument(
         "--stdout-only",
         action="store_true",
         help="Print the recap locally without using the notifier in the recap config.",
@@ -42,14 +47,60 @@ def parse_args():
     return parser.parse_args()
 
 
-def run_step(command: list[str]) -> None:
-    subprocess.run(command, check=True)
+def load_env_file(path: Path) -> dict[str, str]:
+    loaded: dict[str, str] = {}
+    if not path.exists():
+        return loaded
+    for raw_line in path.read_text().splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:].strip()
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip("'").strip('"')
+        if key:
+            loaded[key] = value
+    return loaded
+
+
+def resolve_runtime_env(script_dir: Path, explicit_env_file: str | None) -> dict[str, str]:
+    env = os.environ.copy()
+    candidates = []
+    if explicit_env_file:
+        candidate = Path(explicit_env_file)
+        if not candidate.is_absolute():
+            candidate = (script_dir / explicit_env_file).resolve()
+        candidates.append(candidate)
+    else:
+        candidates.extend(
+            [
+                (script_dir.parent / ".env.local").resolve(),
+                (script_dir.parent / "assets" / "runtime.env.local").resolve(),
+            ]
+        )
+    for candidate in candidates:
+        env.update(load_env_file(candidate))
+    return env
+
+
+def run_step(command: list[str], env: dict[str, str]) -> None:
+    subprocess.run(command, check=True, env=env)
 
 
 def main():
     args = parse_args()
     script_dir = Path(__file__).resolve().parent
-    builder_config = (script_dir / args.builder_config).resolve()
+    runtime_env = resolve_runtime_env(script_dir, args.env_file)
+    local_builder_config = (script_dir / "../assets/market_context_builder.local.json").resolve()
+    builder_config = (
+        (script_dir / args.builder_config).resolve()
+        if args.builder_config != "../assets/market_context_builder.example.json"
+        else (local_builder_config if local_builder_config.exists() else (script_dir / args.builder_config).resolve())
+    )
     local_recap_config = (script_dir / "../assets/daily_recap.openclaw.discord.local.json").resolve()
     default_recap_config = (script_dir / "../assets/daily_recap.openclaw.discord.json").resolve()
     recap_config = (script_dir / args.recap_config).resolve() if args.recap_config else (
@@ -73,7 +124,7 @@ def main():
         command.extend(["--overlay-file", str((script_dir / args.overlay_file).resolve())])
     if args.memory_file:
         command.extend(["--memory-file", args.memory_file])
-    run_step(command)
+    run_step(command, runtime_env)
 
     recap_command = [
         sys.executable,
@@ -87,7 +138,7 @@ def main():
         recap_command.extend(["--memory-file", args.memory_file])
     if args.output:
         recap_command.extend(["--output", str((script_dir / args.output).resolve())])
-    run_step(recap_command)
+    run_step(recap_command, runtime_env)
 
 
 if __name__ == "__main__":

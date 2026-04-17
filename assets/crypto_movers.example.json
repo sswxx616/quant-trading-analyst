@@ -1,0 +1,19 @@
+{
+  "id": "crypto-movers-scan",
+  "quote": "USDT",
+  "top": 30,
+  "analyze_top": 8,
+  "notify_top": 3,
+  "timeframe": "4h",
+  "min_quote_volume": 10000000,
+  "min_price_change_pct": 5,
+  "min_score": 20,
+  "recommendation_allowlist": [
+    "watch-for-buy-confirmation",
+    "buy-or-add"
+  ],
+  "cooldown_hours": 12,
+  "notifier": {
+    "type": "stdout"
+  }
+}

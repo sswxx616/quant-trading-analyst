@@ -103,6 +103,10 @@ Many market-analysis assistants produce narrative output that is difficult to au
 | `scripts/analyze_asset.py` | one-off analysis |
 | `scripts/build_market_context.py` | benchmark-based market context builder |
 | `scripts/monitor_asset.py` | threshold-based monitoring |
+| `scripts/scan_crypto_movers.py` | Binance top-gainer scanner with quant follow-through |
+| `scripts/generate_crypto_trade_plan.py` | staged crypto trade-plan generator for channel delivery |
+| `scripts/generate_crypto_anomaly_plan.py` | early altcoin anomaly radar with short-term momentum, volume, and futures sentiment |
+| `scripts/report_crypto_anomaly_factors.py` | evaluate anomaly-factor snapshots over forward 6h/24h horizons |
 | `scripts/generate_daily_recap.py` | strategy-brief daily recap |
 | `scripts/report_accuracy.py` | hit-rate and outcome summary |
 | `scripts/update_learning.py` | store labeled outcomes |
@@ -124,6 +128,14 @@ export TWELVEDATA_API_KEY="your_twelve_data_key"
 export TUSHARE_TOKEN="your_tushare_token"
 ```
 
+For unattended recap automations, you can also store local-only runtime secrets in an ignored file:
+
+```bash
+cp assets/runtime.env.example .env.local
+```
+
+`scripts/run_daily_recap_workflow.py` will load `.env.local` or `assets/runtime.env.local` automatically before it spawns the market-context builder and recap renderer.
+
 Run a one-off analysis:
 
 ```bash
@@ -131,6 +143,10 @@ cd scripts
 python3 analyze_asset.py --asset NVDA --market us-stock --timeframe 1d --format markdown
 python3 analyze_asset.py --asset 002594 --market cn-stock --timeframe 1d --format markdown
 python3 analyze_asset.py --asset ETH --market crypto --timeframe 4h --format markdown
+python3 scan_crypto_movers.py --config ../assets/crypto_movers.example.json
+python3 generate_crypto_trade_plan.py --config ../assets/crypto_trade_plan.example.json
+python3 generate_crypto_anomaly_plan.py --config ../assets/crypto_anomaly_plan.example.json
+python3 report_crypto_anomaly_factors.py
 ```
 
 Run the full recap workflow:
@@ -256,6 +272,105 @@ python3 build_market_context.py \
   --output /tmp/market-context.json
 ```
 
+## Crypto Movers
+
+The repository can also track Binance spot-market gainers so you can catch fast-moving names such as `ORDI`, `SUI`, or other sudden breakout candidates before they hit your manual watchlist.
+
+Run a one-off scan:
+
+```bash
+cd scripts
+python3 scan_crypto_movers.py --config ../assets/crypto_movers.example.json
+```
+
+This scanner:
+
+- pulls the Binance 24h leaderboard
+- filters out stablecoin-like symbols and leveraged tokens
+- applies minimum quote-volume and gain thresholds
+- runs the built-in quant engine on the shortlisted movers
+- optionally pushes alerts through stdout, webhook, or OpenClaw with cooldown control
+
+Example use cases:
+
+- track the top 30 USDT gainers and analyze the top 8 on a `4h` basis
+- alert only when a hot coin is also scoring `20+` and reaches `watch-for-buy-confirmation` or `buy-or-add`
+- run the script every 30-60 minutes in an external scheduler or automation
+
+The repository includes a starter config:
+
+- [`assets/crypto_movers.example.json`](./assets/crypto_movers.example.json)
+
+If you want live delivery, replace the example notifier with your local OpenClaw or webhook target in an ignored local config file.
+
+## Crypto Trade Plans
+
+The repository also supports an OpenAlice-inspired workflow for crypto ideas: scan the market, generate staged trade plans, and push the plans to a channel without placing any orders.
+
+Run it like this:
+
+```bash
+cd scripts
+python3 generate_crypto_trade_plan.py --config ../assets/crypto_trade_plan.example.json
+```
+
+This planner is designed to take the useful parts of an agentic trading engine without introducing live execution risk:
+
+- detects strong Binance spot movers
+- re-checks them with the local quant engine
+- outputs staged plans instead of direct orders
+- enforces simple guardrails such as starter position limits, maximum total allocation, and chase filters
+- delivers the plan through stdout, webhook, or OpenClaw
+- can stay quiet unless a symbol newly enters the qualified trade-plan set
+
+Each plan includes:
+
+- whether the idea is starter-now, wait-breakout, wait-pullback, or watch-only
+- an observation buy level and confirmation-buy level
+- a first sell level
+- defensive and hard-stop invalidation levels
+- suggested starter and maximum position sizes
+
+If you only want channel pushes for newly qualifying movers, set `"notify_new_only": true`. In that mode a symbol alerts only when it first enters the qualified plan set, then stays quiet until it drops out and qualifies again later.
+
+Starter config:
+
+- [`assets/crypto_trade_plan.example.json`](./assets/crypto_trade_plan.example.json)
+
+## Crypto Altcoin Anomaly Radar
+
+If you want earlier altcoin discovery than a simple 24h gainers list, use the anomaly radar. It borrows the useful parts of stronger open-source scanners: short-term momentum, relative volume, futures open-interest expansion, and funding-rate sanity checks, then still converts the result into staged plans instead of live orders.
+
+Run it like this:
+
+```bash
+cd scripts
+python3 generate_crypto_anomaly_plan.py --config ../assets/crypto_anomaly_plan.example.json
+```
+
+This radar is designed to catch “something just started moving” setups rather than only coins that are already at the top of the daily leaderboard.
+
+- checks `15m` and `1h` momentum together
+- measures short-term relative volume spikes
+- uses Binance futures funding and open-interest changes when available
+- only pushes newly qualifying symbols when `notify_new_only` is set to `true`
+- still routes every candidate through the local quant engine before it becomes a plan
+
+Starter config:
+
+- [`assets/crypto_anomaly_plan.example.json`](./assets/crypto_anomaly_plan.example.json)
+
+The anomaly radar also writes a lightweight factor log on every run. You can review which anomaly features have been working over recent forward horizons with:
+
+```bash
+cd scripts
+python3 report_crypto_anomaly_factors.py
+```
+
+This gives you a small `finhack`-style validation loop without bringing in a heavy research stack: the radar records anomaly-score, short-term momentum, relative volume, funding, and open-interest context, then the report estimates forward 6h and 24h outcomes from later snapshots.
+
+For personal delivery, keep the live notifier target in an ignored local file such as `assets/crypto_trade_plan.discord.local.json`.
+
 ## Monitoring
 
 Run one monitoring cycle:
@@ -263,6 +378,7 @@ Run one monitoring cycle:
 ```bash
 cd scripts
 python3 monitor_asset.py --config ../assets/monitor_config.example.json --once
+python3 scan_crypto_movers.py --config ../assets/crypto_movers.example.json
 ```
 
 Install a 24/7 background job on macOS:

@@ -1,0 +1,24 @@
+{
+  "id": "crypto-anomaly-plan",
+  "quote": "USDT",
+  "spot_top": 60,
+  "analyze_top": 12,
+  "notify_top": 3,
+  "analysis_timeframe": "1h",
+  "min_quote_volume": 8000000,
+  "min_price_change_pct": 2.5,
+  "max_price_change_pct": 45,
+  "min_anomaly_score": 30,
+  "min_quant_score": 20,
+  "recommendation_allowlist": [
+    "watch-for-buy-confirmation",
+    "buy-or-add"
+  ],
+  "starter_position_pct": 10,
+  "max_position_pct": 25,
+  "notify_new_only": true,
+  "oi_period": "5m",
+  "notifier": {
+    "type": "stdout"
+  }
+}
