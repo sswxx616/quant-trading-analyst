@@ -95,11 +95,42 @@ cd scripts
 python3 analyze_asset.py --asset NVDA --market us-stock --timeframe 1d --format markdown
 python3 analyze_asset.py --asset 002594 --market cn-stock --timeframe 1d --format markdown
 python3 analyze_asset.py --asset ETH --market crypto --timeframe 4h --format markdown
+python3 scan_cn_quality_stocks.py --config ../assets/cn_stock_selector.example.json --stdout-only
 python3 scan_crypto_movers.py --config ../assets/crypto_movers.example.json
 python3 generate_crypto_trade_plan.py --config ../assets/crypto_trade_plan.example.json
 python3 generate_crypto_anomaly_plan.py --config ../assets/crypto_anomaly_plan.example.json
 python3 report_crypto_anomaly_factors.py
 ```
+
+## A股优质股筛选器
+
+仓库现在支持一条更完整的 A 股选股链路：先做 `finhack` 风格的质量因子排序，再叠加 `ABu` 风格的买卖点和风控纪律，最后交给本地量化引擎做二次筛选。
+
+单次运行：
+
+```bash
+cd scripts
+python3 scan_cn_quality_stocks.py --config ../assets/cn_stock_selector.example.json --stdout-only
+```
+
+这条筛选器会：
+
+- 从较完整的 A 股财报横截面里先筛出质量较好的公司
+- 借鉴 `finhack / Qlib / zvt` 的思路，把候选股先拆成：
+  成长分、经营质量分、估值分、技术时机分
+- 用行业上限避免候选池被单一热门赛道完全占满
+- 再用本地量化引擎做趋势/位置/盈亏比/验证质量的二次过滤
+- 最终输出可执行的 Top 候选股列表、关键价位和动作建议
+
+新版表格会直接显示：
+
+- `成长分`
+- `质量分`
+- `估值分`
+- `时机分`
+- `总分`
+- `阶段`
+- `动作`
 
 一条命令跑完整 daily recap 工作流：
 
@@ -246,6 +277,7 @@ python3 generate_crypto_trade_plan.py --config ../assets/crypto_trade_plan.examp
 - 观察买点和确认位
 - 第一卖点
 - 防守线和止损失效位
+- 一段更完整的交易框架说明：当前处于回踩区、确认区还是扩展区，盈亏比是否划算，历史验证质量怎么样，以及几根 K 线内不动就主动降级
 
 如果你只想在发现“新强势币且符合计划条件”时推送，把配置里的 `"notify_new_only"` 设成 `true`。这样同一个币只会在首次进入合格计划集合时提醒，后面只要它还一直待在集合里，就不会重复刷屏；等它掉出去、以后又重新进入时，才会再提醒。
 
@@ -285,7 +317,7 @@ python3 report_crypto_anomaly_factors.py
 - OI 是否同步增长
 - 资金费率是否过热
 - 最终生成的计划动作类型
-- 初始仓位建议和最大仓位上限
+- 入场阶段、验证质量、风险级别和盈亏比分层
 
 示例配置在这里：
 

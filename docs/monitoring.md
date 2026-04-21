@@ -92,6 +92,13 @@ Recommended defaults:
 - `avoid_parabolic_above_pct = 80`
 - `notify_new_only = true` if you only want alerts when a symbol newly enters the qualified trade-plan set
 
+The staged plan output now also includes a lightweight trade framework:
+
+- setup phase such as `pullback-zone`, `confirmation-zone`, or `extended-zone`
+- reward-to-stop ratio so stretched setups can be downgraded automatically
+- validation quality based on the local walk-forward sample
+- risk tier and a simple time-stop measured in bars
+
 ## Altcoin Anomaly Radar
 
 Use `generate_crypto_anomaly_plan.py` when you want earlier altcoin discovery than a 24h gainers list.
@@ -128,6 +135,10 @@ This report estimates forward `6h` and `24h` outcomes from later snapshots, then
 - open-interest direction
 - funding crowding
 - final plan action
+- setup phase
+- validation quality
+- risk tier
+- reward/risk band
 
 Starter config:
 

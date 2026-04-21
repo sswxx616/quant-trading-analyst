@@ -58,6 +58,20 @@ def bucketize(row: dict) -> dict:
         "oi_band": "positive" if (oi is not None and float(oi) > 0) else "flat-or-negative",
         "funding_band": "hot" if (funding is not None and float(funding) >= 0.08) else "normal-or-cool",
         "plan_action": row.get("plan_action") or "not-qualified",
+        "setup_phase": row.get("setup_phase") or "unknown",
+        "validation_quality": row.get("validation_quality") or "unknown",
+        "risk_tier": row.get("risk_tier") or "unknown",
+        "reward_risk_band": (
+            ">=1.8"
+            if row.get("reward_to_stop_ratio") is not None and float(row["reward_to_stop_ratio"]) >= 1.8
+            else "1.1-1.79"
+            if row.get("reward_to_stop_ratio") is not None and float(row["reward_to_stop_ratio"]) >= 1.1
+            else "<1.1"
+            if row.get("reward_to_stop_ratio") is not None
+            else "unknown"
+        ),
+        "position_posture": row.get("position_posture") or "unknown",
+        "exit_posture": row.get("exit_posture") or "unknown",
     }
 
 
@@ -109,6 +123,12 @@ def build_summary(rows: list[dict], horizons: list[int], limit: int) -> dict:
         "oi_band": defaultdict(list),
         "funding_band": defaultdict(list),
         "plan_action": defaultdict(list),
+        "setup_phase": defaultdict(list),
+        "validation_quality": defaultdict(list),
+        "risk_tier": defaultdict(list),
+        "reward_risk_band": defaultdict(list),
+        "position_posture": defaultdict(list),
+        "exit_posture": defaultdict(list),
     }
     for row in qualified:
         buckets = bucketize(row)

@@ -5,4 +5,6 @@ assets/market_context.daily.json
 assets/*.rendered.md
 assets/*.local.json
 assets/*.env.local
+scripts/*.rendered.md
+scripts/assets/*.rendered.md
 scripts/assets/*.daily.json

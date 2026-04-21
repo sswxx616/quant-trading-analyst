@@ -6,7 +6,14 @@ import json
 import time
 from pathlib import Path
 
-from quant_core import ensure_state_dir, load_json, recommendation_label, send_notification, write_json
+from quant_core import (
+    derive_trade_framework,
+    ensure_state_dir,
+    load_json,
+    recommendation_label,
+    send_notification,
+    write_json,
+)
 from scan_crypto_movers import (
     DEFAULT_RECOMMENDATION_ALLOWLIST,
     analyze_candidates,
@@ -56,10 +63,37 @@ def pct_diff(base: float | None, price: float | None) -> float | None:
     return ((float(price) / float(base)) - 1.0) * 100.0
 
 
+def build_framework(report: dict) -> dict:
+    return derive_trade_framework(
+        {
+            "current_price": report["current_price"],
+            "levels": report["levels"],
+            "signals": report["signals"],
+            "backtest": report["backtest"],
+        }
+    )
+
+
+def posture_cn(value: str | None) -> str:
+    return {
+        "accumulate": "可分批吸纳",
+        "pilot-only": "只适合观察仓",
+        "harvest-strength": "适合趁强兑现一部分",
+        "protect-capital": "优先保护本金",
+        "hold-and-assess": "先拿着评估",
+        "trim-first-target": "到第一目标先减仓",
+        "scale-out-hard": "接近二目标继续明显减仓",
+        "reduce-strength": "反弹以减仓为主",
+        "defense-first": "先转防守",
+        "hold-core": "核心仓继续拿",
+    }.get(value, value or "未定义")
+
+
 def plan_action(item: dict, config: dict) -> tuple[str, str]:
     report = item["report"]
     ticker = item["ticker"]
     levels = report["levels"]
+    framework = build_framework(report)
     price = float(report["current_price"])
     observe = float(levels["best_buy_level"])
     confirmation = float(levels.get("confirmation_buy_level") or observe)
@@ -73,6 +107,16 @@ def plan_action(item: dict, config: dict) -> tuple[str, str]:
         return (
             "watch-only",
             "24h 涨幅过大，先不追，优先等待回踩或更稳的二次确认。",
+        )
+    if framework["setup_phase"] == "extended-zone":
+        return (
+            "wait-pullback",
+            "当前已经偏离舒服买点，先等回踩，不在扩展区硬追。",
+        )
+    if framework["reward_risk_grade"] == "weak":
+        return (
+            "watch-only",
+            "当前第一目标和止损的盈亏比不够好，先观察，不抢着上车。",
         )
     if report["recommendation"] == "buy-or-add" and above_confirm <= max_chase:
         return (
@@ -102,9 +146,14 @@ def plan_action(item: dict, config: dict) -> tuple[str, str]:
 
 def plan_positioning(item: dict, config: dict) -> tuple[int, int]:
     report = item["report"]
+    framework = build_framework(report)
     score = int(report["score"])
     base_starter = int(config.get("starter_position_pct", 10))
     base_max = int(config.get("max_position_pct", 25))
+    if framework["validation_quality"] == "weak" or framework["risk_tier"] == "high":
+        return max(base_starter - 4, 4), max(base_max - 10, 10)
+    if framework["validation_quality"] == "moderate" or framework["risk_tier"] == "medium":
+        return max(base_starter - 2, 6), max(base_max - 5, 15)
     if score >= 50:
         return min(base_starter + 2, base_max), base_max
     if score >= 35:
@@ -117,6 +166,7 @@ def build_plan(item: dict, config: dict) -> dict:
     ticker = item["ticker"]
     levels = report["levels"]
     signals = report["signals"]
+    framework = build_framework(report)
     action, action_cn = plan_action(item, config)
     starter_pct, max_pct = plan_positioning(item, config)
     price = float(report["current_price"])
@@ -145,9 +195,15 @@ def build_plan(item: dict, config: dict) -> dict:
     invalidation_cn = (
         f"失效条件：跌破防守线 {defensive:.4f} 先转谨慎；跌破止损参考 {stop:.4f} 视为计划失效。"
     )
+    time_stop_cn = f"时间止损：若 {framework['time_stop_bars']} 根K线内都没能走向第一目标，就把它当成低质量机会，主动降级。"
     catalyst_cn = (
         f"触发背景：24h 涨幅 {day_gain:.2f}% | 评分 {report['score']} | "
         f"RSI {signals.get('rsi14')} | 当前判断 {recommendation_label(report['recommendation'])}"
+    )
+    framework_cn = (
+        f"阶段 {framework['setup_phase']} | 盈亏比 {framework['reward_to_stop_ratio']} | "
+        f"验证质量 {framework['validation_quality']} | 风险级别 {framework['risk_tier']} | "
+        f"仓位姿态 {posture_cn(framework['position_posture'])} | 卖出姿态 {posture_cn(framework['exit_posture'])}"
     )
 
     return {
@@ -168,7 +224,10 @@ def build_plan(item: dict, config: dict) -> dict:
         "summary_cn": action_cn,
         "execution_cn": execution_cn,
         "invalidation_cn": invalidation_cn,
+        "time_stop_cn": time_stop_cn,
         "catalyst_cn": catalyst_cn,
+        "framework_cn": framework_cn,
+        "trade_framework": framework,
         "reasons_cn": report.get("reasons", [])[:3],
         "risks_cn": report.get("risks", [])[:3],
     }
@@ -206,6 +265,8 @@ def render_markdown(plans: list[dict], config: dict, analyzed: list[dict]) -> st
                 f"- Summary: {plan['summary_cn']}",
                 f"- Execution: {plan['execution_cn']}",
                 f"- Invalidation: {plan['invalidation_cn']}",
+                f"- Time stop: {plan['time_stop_cn']}",
+                f"- Framework: {plan['framework_cn']}",
             ]
         )
     return "\n".join(lines) + "\n"
@@ -229,6 +290,8 @@ def render_notification(plans: list[dict], config: dict) -> str:
                 f"  当前价 {plan['current_price']} | 观察买点 {plan['observe_buy']} | 确认位 {plan['confirmation_buy']} | 第一卖点 {plan['first_sell']}",
                 f"  {plan['execution_cn']}",
                 f"  {plan['invalidation_cn']}",
+                f"  {plan['time_stop_cn']}",
+                f"  {plan['framework_cn']}",
             ]
         )
     lines.extend(
@@ -243,7 +306,9 @@ def render_notification(plans: list[dict], config: dict) -> str:
         lines.append(
             f"- {plan['base_asset']}: price {plan['current_price']} | observe {plan['observe_buy']} | "
             f"confirm {plan['confirmation_buy']} | first sell {plan['first_sell']} | "
-            f"starter/max {plan['starter_position_pct']}%/{plan['max_position_pct']}%"
+            f"starter/max {plan['starter_position_pct']}%/{plan['max_position_pct']}% | "
+            f"phase {plan['trade_framework']['setup_phase']} | "
+            f"rr {plan['trade_framework']['reward_to_stop_ratio']}"
         )
     return "\n".join(lines)
 

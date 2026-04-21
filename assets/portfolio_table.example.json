@@ -1,0 +1,49 @@
+{
+  "title": "Daily Portfolio Table",
+  "items": [
+    {
+      "market": "stock",
+      "asset": "AAPL",
+      "label": "Apple",
+      "type": "holding",
+      "cost_basis": 190.0
+    },
+    {
+      "market": "stock",
+      "asset": "MSFT",
+      "label": "Microsoft",
+      "type": "holding",
+      "cost_basis": 410.0
+    },
+    {
+      "market": "cn-stock",
+      "asset": "600519",
+      "label": "贵州茅台",
+      "type": "holding",
+      "cost_basis": 1580.0
+    },
+    {
+      "market": "dubai-stock",
+      "asset": "EMAAR",
+      "label": "EMAAR",
+      "type": "holding",
+      "cost_basis": 12.5
+    },
+    {
+      "market": "crypto",
+      "asset": "BTC",
+      "label": "BTC",
+      "type": "holding",
+      "cost_basis": 68500.0
+    },
+    {
+      "market": "crypto",
+      "asset": "ETH",
+      "label": "ETH",
+      "type": "watch"
+    }
+  ],
+  "notifier": {
+    "type": "stdout"
+  }
+}

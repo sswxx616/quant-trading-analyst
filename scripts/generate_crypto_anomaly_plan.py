@@ -10,6 +10,7 @@ from pathlib import Path
 
 from quant_core import (
     analyze,
+    derive_trade_framework,
     ensure_state_dir,
     fetch_json,
     load_json,
@@ -57,6 +58,32 @@ def pct_change(current: float | None, previous: float | None) -> float | None:
     if current in (None, 0) or previous in (None, 0):
         return None
     return ((float(current) / float(previous)) - 1.0) * 100.0
+
+
+def build_framework(report: dict) -> dict:
+    return derive_trade_framework(
+        {
+            "current_price": report["current_price"],
+            "levels": report["levels"],
+            "signals": report["signals"],
+            "backtest": report["backtest"],
+        }
+    )
+
+
+def posture_cn(value: str | None) -> str:
+    return {
+        "accumulate": "可分批吸纳",
+        "pilot-only": "只适合观察仓",
+        "harvest-strength": "适合趁强兑现一部分",
+        "protect-capital": "优先保护本金",
+        "hold-and-assess": "先拿着评估",
+        "trim-first-target": "到第一目标先减仓",
+        "scale-out-hard": "接近二目标继续明显减仓",
+        "reduce-strength": "反弹以减仓为主",
+        "defense-first": "先转防守",
+        "hold-core": "核心仓继续拿",
+    }.get(value, value or "未定义")
 
 
 def fetch_binance_klines(symbol: str, interval: str, limit: int = 120) -> list[dict]:
@@ -252,6 +279,7 @@ def build_plan(item: dict, config: dict) -> dict:
     short_term = item["short_term"]
     report = item["report"]
     levels = report["levels"]
+    framework = build_framework(report)
     anomaly_score = item["anomaly_score"]
     current_price = float(report["current_price"])
     confirmation = float(levels.get("confirmation_buy_level") or levels["best_buy_level"])
@@ -261,7 +289,11 @@ def build_plan(item: dict, config: dict) -> dict:
     oi_change_pct = item.get("oi_change_pct")
 
     over_confirm_pct = pct_change(current_price, confirmation) or 0.0
-    if anomaly_score >= 72 and over_confirm_pct <= 4 and report["recommendation"] == "buy-or-add":
+    if framework["setup_phase"] == "extended-zone" or framework["reward_risk_grade"] == "weak":
+        action = "wait-pullback"
+        summary_cn = "异动已经被看到，但位置和盈亏比一般，优先等回踩。"
+        execution_cn = f"计划：先不追；等回踩 {observe:.4f} 附近，或下一次整理后再看。"
+    elif anomaly_score >= 72 and over_confirm_pct <= 4 and report["recommendation"] == "buy-or-add":
         action = "starter-now"
         summary_cn = "异动、量能和量化过滤同时共振，可以先建小试探仓。"
         execution_cn = (
@@ -291,6 +323,12 @@ def build_plan(item: dict, config: dict) -> dict:
         f"资金费率 {funding_rate_pct:.4f}%" if funding_rate_pct is not None else None,
     ]
     metrics_cn = [value for value in metrics_cn if value]
+    time_stop_cn = f"时间止损：若 {framework['time_stop_bars']} 根K线内都没走向第一卖点，就把这轮计划降级处理。"
+    framework_cn = (
+        f"阶段 {framework['setup_phase']} | 盈亏比 {framework['reward_to_stop_ratio']} | "
+        f"验证质量 {framework['validation_quality']} | 风险级别 {framework['risk_tier']} | "
+        f"仓位姿态 {posture_cn(framework['position_posture'])} | 卖出姿态 {posture_cn(framework['exit_posture'])}"
+    )
 
     return {
         "symbol": ticker["symbol"],
@@ -309,6 +347,9 @@ def build_plan(item: dict, config: dict) -> dict:
         "max_position_pct": int(config.get("max_position_pct", 25)),
         "summary_cn": summary_cn,
         "execution_cn": execution_cn,
+        "time_stop_cn": time_stop_cn,
+        "framework_cn": framework_cn,
+        "trade_framework": framework,
         "invalidation_cn": (
             f"失效条件：跌破防守线 {levels['defensive_sell_trigger']} 先转谨慎；跌破止损参考 {levels['stop_loss']} 视为本轮计划失效。"
         ),
@@ -343,6 +384,12 @@ def append_factor_log(analyzed: list[dict], plans: list[dict]) -> None:
                 "plan_action": plan["action"] if plan else None,
                 "starter_position_pct": plan["starter_position_pct"] if plan else None,
                 "max_position_pct": plan["max_position_pct"] if plan else None,
+                "setup_phase": plan["trade_framework"]["setup_phase"] if plan else None,
+                "reward_to_stop_ratio": plan["trade_framework"]["reward_to_stop_ratio"] if plan else None,
+                "validation_quality": plan["trade_framework"]["validation_quality"] if plan else None,
+                "risk_tier": plan["trade_framework"]["risk_tier"] if plan else None,
+                "position_posture": plan["trade_framework"]["position_posture"] if plan else None,
+                "exit_posture": plan["trade_framework"]["exit_posture"] if plan else None,
                 "observe_buy": report["levels"]["best_buy_level"],
                 "confirmation_buy": report["levels"].get("confirmation_buy_level"),
                 "first_sell": report["levels"]["best_sell_level"],
@@ -391,6 +438,8 @@ def render_markdown(plans: list[dict], analyzed: list[dict], config: dict) -> st
                 f"- Starter / max position: {plan['starter_position_pct']}% / {plan['max_position_pct']}%",
                 f"- Summary: {plan['summary_cn']}",
                 f"- Execution: {plan['execution_cn']}",
+                f"- Time stop: {plan['time_stop_cn']}",
+                f"- Framework: {plan['framework_cn']}",
                 f"- Metrics: {' | '.join(plan['metrics_cn'])}",
             ]
         )
@@ -415,6 +464,8 @@ def render_notification(plans: list[dict], config: dict) -> str:
                 f"  异动分 {plan['anomaly_score']} | 量化分 {plan['quant_score']} | 当前价 {plan['current_price']}",
                 f"  观察买点 {plan['observe_buy']} | 确认位 {plan['confirmation_buy']} | 第一卖点 {plan['first_sell']}",
                 f"  {plan['execution_cn']}",
+                f"  {plan['time_stop_cn']}",
+                f"  {plan['framework_cn']}",
             ]
         )
         if plan["metrics_cn"]:
@@ -430,7 +481,8 @@ def render_notification(plans: list[dict], config: dict) -> str:
     for plan in plans[: int(config.get("notify_top", 3))]:
         lines.append(
             f"- {plan['base_asset']}: anomaly {plan['anomaly_score']} | quant {plan['quant_score']} | "
-            f"price {plan['current_price']} | observe {plan['observe_buy']} | confirm {plan['confirmation_buy']} | first sell {plan['first_sell']}"
+            f"price {plan['current_price']} | observe {plan['observe_buy']} | confirm {plan['confirmation_buy']} | first sell {plan['first_sell']} | "
+            f"phase {plan['trade_framework']['setup_phase']} | rr {plan['trade_framework']['reward_to_stop_ratio']}"
         )
     return "\n".join(lines)
 

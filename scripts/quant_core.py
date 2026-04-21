@@ -97,6 +97,53 @@ US_EQUITY_EXCHANGES = {"NASDAQ", "NYSE", "AMEX", "NYSE ARCA", "NYSE American"}
 CN_EQUITY_EXCHANGES = {"SSE", "SZSE", "BSE"}
 
 
+def load_env_file(path: Path) -> dict[str, str]:
+    loaded: dict[str, str] = {}
+    if not path.exists():
+        return loaded
+    for raw_line in path.read_text().splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.startswith("export "):
+            line = line[7:].strip()
+        if "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip().strip("'").strip('"')
+        if key:
+            loaded[key] = value
+    return loaded
+
+
+def resolve_runtime_env_candidates(explicit_env_file: str | None = None) -> list[Path]:
+    script_dir = Path(__file__).resolve().parent
+    candidates: list[Path] = []
+    if explicit_env_file:
+        candidate = Path(explicit_env_file)
+        if not candidate.is_absolute():
+            candidate = (script_dir / explicit_env_file).resolve()
+        candidates.append(candidate)
+    else:
+        candidates.extend(
+            [
+                (script_dir.parent / ".env.local").resolve(),
+                (script_dir.parent / "assets" / "runtime.env.local").resolve(),
+            ]
+        )
+    return candidates
+
+
+def apply_local_runtime_env(explicit_env_file: str | None = None) -> dict[str, str]:
+    loaded: dict[str, str] = {}
+    for candidate in resolve_runtime_env_candidates(explicit_env_file):
+        for key, value in load_env_file(candidate).items():
+            os.environ[key] = value
+            loaded[key] = value
+    return loaded
+
+
 def ensure_state_dir() -> Path:
     DEFAULT_STATE_DIR.mkdir(parents=True, exist_ok=True)
     return DEFAULT_STATE_DIR
@@ -253,6 +300,59 @@ def parse_cn_date(value: str) -> datetime:
 def parse_cn_trade_time(value: str) -> datetime:
     normalized = value.replace("T", " ")
     return datetime.strptime(normalized, "%Y-%m-%d %H:%M:%S")
+
+
+def cn_realtime_symbol(asset_or_symbol: str) -> str:
+    normalized_symbol = infer_cn_ts_code(asset_or_symbol)
+    symbol, suffix = normalized_symbol.split(".", 1)
+    prefix = {"SH": "sh", "SZ": "sz", "BJ": "bj"}.get(suffix.upper())
+    if prefix is None:
+        raise ValueError(f"Unsupported A-share suffix for realtime quote: {normalized_symbol}")
+    return f"{prefix}{symbol}"
+
+
+def fetch_cn_stock_realtime_quote(symbol: str) -> dict | None:
+    provider_symbol = cn_realtime_symbol(symbol)
+    url = f"https://qt.gtimg.cn/q={provider_symbol}"
+    request = urllib.request.Request(
+        url,
+        headers={"Referer": "https://gu.qq.com/", "User-Agent": YAHOO_HEADERS["User-Agent"]},
+    )
+    with urllib.request.urlopen(request, timeout=10) as response:
+        raw = response.read().decode("gbk", errors="ignore")
+    if not raw or "=" not in raw:
+        return None
+    payload = raw.split('"', 1)[1].rsplit('"', 1)[0]
+    fields = payload.split("~")
+    if len(fields) < 45:
+        return None
+    current_price = safe_float(fields[3], default=0.0)
+    previous_close = safe_float(fields[4], default=0.0)
+    open_price = safe_float(fields[5], default=0.0)
+    high_price = safe_float(fields[33], default=0.0)
+    low_price = safe_float(fields[34], default=0.0)
+    volume = safe_float(fields[6], default=0.0)
+    timestamp_text = fields[30].strip()
+    timestamp = None
+    if timestamp_text:
+        try:
+            timestamp = int(datetime.strptime(timestamp_text, "%Y%m%d%H%M%S").timestamp())
+        except ValueError:
+            timestamp = None
+    if current_price <= 0:
+        return None
+    return {
+        "symbol": fields[2] or symbol,
+        "display_name": fields[1] or symbol,
+        "current_price": current_price,
+        "previous_close": previous_close if previous_close > 0 else None,
+        "open": open_price if open_price > 0 else None,
+        "high": high_price if high_price > 0 else None,
+        "low": low_price if low_price > 0 else None,
+        "volume": volume if volume > 0 else None,
+        "timestamp": timestamp,
+        "price_source": "tencent-realtime",
+    }
 
 
 def tushare_request(
@@ -1452,6 +1552,7 @@ def analyze(
     memory_file: Path | None = None,
     tushare_mode: str = "http",
 ) -> dict:
+    apply_local_runtime_env()
     tushare_mode = normalize_tushare_mode(tushare_mode)
     asset = resolve_asset(asset_query, market, tushare_mode=tushare_mode)
     candles, data_source = fetch_candles(asset, timeframe, tushare_mode=tushare_mode)
@@ -1464,14 +1565,51 @@ def analyze(
     memory = load_json(memory_path, {"feedback": [], "tag_stats": {}})
     learning_insights = summarize_learning(memory, snapshot["tags"])
     backtest = backtest_snapshot(candles, timeframe)
-    change_5 = pct_change(candles[-1]["close"], candles[-6]["close"] if len(candles) >= 6 else None)
-    change_20 = pct_change(candles[-1]["close"], candles[-21]["close"] if len(candles) >= 21 else None)
+    effective_price = snapshot["price"]
+    price_source = data_source or asset.get("data_source") or asset.get("source")
+    if asset.get("region") == "CN":
+        try:
+            realtime_quote = fetch_cn_stock_realtime_quote(asset["symbol"])
+        except Exception:
+            realtime_quote = None
+        if realtime_quote and realtime_quote.get("current_price"):
+            effective_price = realtime_quote["current_price"]
+            price_source = realtime_quote.get("price_source", price_source)
+    change_5 = pct_change(effective_price, candles[-6]["close"] if len(candles) >= 6 else None)
+    change_20 = pct_change(effective_price, candles[-21]["close"] if len(candles) >= 21 else None)
+    trade_framework = derive_trade_framework(
+        {
+            "current_price": round_price(effective_price),
+            "levels": {
+                "best_buy_level": snapshot["best_buy_level"],
+                "first_buy_level": snapshot["first_buy_level"],
+                "confirmation_buy_level": snapshot["confirmation_buy_level"],
+                "best_sell_level": snapshot["best_sell_level"],
+                "stop_loss": snapshot["stop_loss"],
+                "defensive_sell_trigger": snapshot["defensive_sell_trigger"],
+                "take_profit_2": snapshot["take_profit_2"],
+                "support": snapshot["support"],
+                "resistance": snapshot["resistance"],
+            },
+            "signals": {
+                "rsi14": snapshot["rsi14"],
+                "macd_histogram": snapshot["macd_histogram"],
+                "atr_percent": snapshot["atr_percent"],
+                "volume_ratio": snapshot["volume_ratio"],
+                "sma20": snapshot["sma20"],
+                "sma50": snapshot["sma50"],
+                "sma200": snapshot["sma200"],
+            },
+            "backtest": backtest,
+        }
+    )
     return {
         "generated_at": int(time.time()),
         "asset": asset,
         "data_source": data_source,
+        "price_source": price_source,
         "timeframe": timeframe,
-        "current_price": round_price(snapshot["price"]),
+        "current_price": round_price(effective_price),
         "price_change_5_bars_pct": round(change_5, 2) if change_5 is not None else None,
         "price_change_20_bars_pct": round(change_20, 2) if change_20 is not None else None,
         "recommendation": snapshot["recommendation"],
@@ -1502,6 +1640,7 @@ def analyze(
         "tags": snapshot["tags"],
         "learning_insights": learning_insights,
         "backtest": backtest,
+        "trade_framework": trade_framework,
         "disclaimer": (
             "Research support only. Quant signals can fail during news shocks, earnings, "
             "macro events, or liquidity stress."
@@ -1519,8 +1658,135 @@ def recommendation_label(value: str) -> str:
     }.get(value, value)
 
 
+def derive_trade_framework(report: dict) -> dict:
+    levels = report["levels"]
+    signals = report["signals"]
+    backtest = report["backtest"]
+    current = float(report["current_price"])
+    recommendation = report.get("recommendation")
+    observe = levels.get("best_buy_level")
+    confirmation = levels.get("confirmation_buy_level") or observe
+    first_sell = levels.get("best_sell_level")
+    second_sell = levels.get("take_profit_2")
+    stop_loss = levels.get("stop_loss")
+    defensive = levels.get("defensive_sell_trigger")
+
+    dist_to_observe = pct_change(current, observe) if observe is not None else None
+    dist_to_confirmation = pct_change(current, confirmation) if confirmation is not None else None
+    upside_1 = pct_change(first_sell, current) if first_sell is not None else None
+    upside_2 = pct_change(second_sell, current) if second_sell is not None else None
+    stop_distance = abs(pct_change(stop_loss, current)) if stop_loss is not None else None
+    defensive_distance = abs(pct_change(defensive, current)) if defensive is not None else None
+
+    reward_to_stop = None
+    if upside_1 not in (None, 0) and stop_distance not in (None, 0):
+        reward_to_stop = upside_1 / stop_distance
+
+    if stop_distance is not None and current <= float(stop_loss) * 1.01:
+        setup_phase = "defense-zone"
+    elif defensive is not None and current <= float(defensive) * 1.01:
+        setup_phase = "defense-zone"
+    elif dist_to_observe is not None and -2.5 <= dist_to_observe <= 2.5:
+        setup_phase = "pullback-zone"
+    elif dist_to_confirmation is not None and -1.0 <= dist_to_confirmation <= 1.5:
+        setup_phase = "confirmation-zone"
+    elif dist_to_confirmation is not None and dist_to_confirmation > 4.0:
+        setup_phase = "extended-zone"
+    else:
+        setup_phase = "mid-range"
+
+    bullish = backtest.get("bullish", {})
+    bullish_count = int(bullish.get("count") or 0)
+    bullish_win_rate = bullish.get("win_rate")
+    bullish_avg_return = bullish.get("avg_return")
+    if (
+        bullish_count >= 40
+        and bullish_win_rate is not None
+        and bullish_avg_return is not None
+        and bullish_win_rate >= 52.0
+        and bullish_avg_return >= 1.0
+    ):
+        validation_quality = "strong"
+    elif (
+        bullish_count >= 20
+        and bullish_win_rate is not None
+        and bullish_avg_return is not None
+        and bullish_win_rate >= 45.0
+        and bullish_avg_return >= 0.3
+    ):
+        validation_quality = "moderate"
+    else:
+        validation_quality = "weak"
+
+    if reward_to_stop is None:
+        reward_risk_grade = "unknown"
+    elif reward_to_stop >= 1.8:
+        reward_risk_grade = "good"
+    elif reward_to_stop >= 1.1:
+        reward_risk_grade = "acceptable"
+    else:
+        reward_risk_grade = "weak"
+
+    atr_percent = signals.get("atr_percent")
+    volume_ratio = signals.get("volume_ratio")
+    rsi14 = signals.get("rsi14")
+    if atr_percent is not None and atr_percent >= 5.5:
+        risk_tier = "high"
+    elif reward_risk_grade == "weak" or (rsi14 is not None and rsi14 >= 72):
+        risk_tier = "high"
+    elif volume_ratio is not None and volume_ratio < 0.75:
+        risk_tier = "medium"
+    else:
+        risk_tier = "normal"
+
+    if second_sell is not None and current >= float(second_sell) * 0.985:
+        exit_posture = "scale-out-hard"
+    elif first_sell is not None and current >= float(first_sell) * 0.995:
+        exit_posture = "trim-first-target"
+    elif recommendation in {"sell-or-avoid", "reduce-or-tighten-risk"}:
+        exit_posture = "reduce-strength"
+    elif setup_phase == "defense-zone":
+        exit_posture = "defense-first"
+    else:
+        exit_posture = "hold-core"
+
+    if recommendation == "buy-or-add" and setup_phase in {"pullback-zone", "confirmation-zone"} and reward_risk_grade in {"good", "acceptable"}:
+        position_posture = "accumulate"
+    elif recommendation == "watch-for-buy-confirmation" and setup_phase in {"pullback-zone", "confirmation-zone"}:
+        position_posture = "pilot-only"
+    elif exit_posture in {"trim-first-target", "scale-out-hard"}:
+        position_posture = "harvest-strength"
+    elif exit_posture in {"reduce-strength", "defense-first"}:
+        position_posture = "protect-capital"
+    else:
+        position_posture = "hold-and-assess"
+
+    trailing_reference = None
+    for candidate in [signals.get("sma20"), defensive, observe]:
+        if candidate is not None:
+            trailing_reference = candidate
+            break
+
+    return {
+        "setup_phase": setup_phase,
+        "reward_to_stop_ratio": round(reward_to_stop, 2) if reward_to_stop is not None else None,
+        "reward_risk_grade": reward_risk_grade,
+        "validation_quality": validation_quality,
+        "risk_tier": risk_tier,
+        "exit_posture": exit_posture,
+        "position_posture": position_posture,
+        "upside_to_first_sell_pct": round(upside_1, 2) if upside_1 is not None else None,
+        "upside_to_second_sell_pct": round(upside_2, 2) if upside_2 is not None else None,
+        "stop_distance_pct": round(stop_distance, 2) if stop_distance is not None else None,
+        "defensive_distance_pct": round(defensive_distance, 2) if defensive_distance is not None else None,
+        "trailing_reference": round_price(trailing_reference),
+        "time_stop_bars": backtest.get("horizon_bars"),
+    }
+
+
 def format_markdown(report: dict) -> str:
     levels = report["levels"]
+    framework = report.get("trade_framework", {})
     market_label = report["asset"]["market"]
     if report["asset"].get("region"):
         market_label = f"{market_label} ({report['asset']['region']})"
@@ -1529,6 +1795,7 @@ def format_markdown(report: dict) -> str:
         "",
         f"- Market: {market_label}",
         f"- Data source: {report.get('data_source') or report['asset'].get('data_source') or report['asset'].get('source')}",
+        f"- Price source: {report.get('price_source') or report.get('data_source') or report['asset'].get('data_source') or report['asset'].get('source')}",
         f"- Timeframe: {report['timeframe']}",
         f"- Current price: {report['current_price']}",
         f"- Recommendation: {recommendation_label(report['recommendation'])}",
@@ -1557,6 +1824,18 @@ def format_markdown(report: dict) -> str:
     signals = report["signals"]
     lines.extend(
         [
+            "",
+            "## Trade Framework",
+            "",
+            f"- Setup phase: {framework.get('setup_phase')}",
+            f"- Reward / stop ratio: {framework.get('reward_to_stop_ratio')}",
+            f"- Reward/risk grade: {framework.get('reward_risk_grade')}",
+            f"- Validation quality: {framework.get('validation_quality')}",
+            f"- Risk tier: {framework.get('risk_tier')}",
+            f"- Position posture: {framework.get('position_posture')}",
+            f"- Exit posture: {framework.get('exit_posture')}",
+            f"- Trailing reference: {framework.get('trailing_reference')}",
+            f"- Time stop bars: {framework.get('time_stop_bars')}",
             "",
             "## Signal Snapshot",
             "",

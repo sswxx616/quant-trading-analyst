@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 
-from quant_core import analyze, format_markdown
+from quant_core import analyze, apply_local_runtime_env, format_markdown
 
 
 def parse_args():
@@ -33,6 +33,7 @@ def parse_args():
 
 def main():
     args = parse_args()
+    apply_local_runtime_env()
     try:
         report = analyze(
             asset_query=args.asset,

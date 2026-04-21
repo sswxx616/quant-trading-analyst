@@ -101,6 +101,7 @@ Many market-analysis assistants produce narrative output that is difficult to au
 | Script | Purpose |
 | --- | --- |
 | `scripts/analyze_asset.py` | one-off analysis |
+| `scripts/scan_cn_quality_stocks.py` | A-share quality selector with factor ranking plus quant follow-through |
 | `scripts/build_market_context.py` | benchmark-based market context builder |
 | `scripts/monitor_asset.py` | threshold-based monitoring |
 | `scripts/scan_crypto_movers.py` | Binance top-gainer scanner with quant follow-through |
@@ -143,11 +144,31 @@ cd scripts
 python3 analyze_asset.py --asset NVDA --market us-stock --timeframe 1d --format markdown
 python3 analyze_asset.py --asset 002594 --market cn-stock --timeframe 1d --format markdown
 python3 analyze_asset.py --asset ETH --market crypto --timeframe 4h --format markdown
+python3 scan_cn_quality_stocks.py --config ../assets/cn_stock_selector.example.json --stdout-only
 python3 scan_crypto_movers.py --config ../assets/crypto_movers.example.json
 python3 generate_crypto_trade_plan.py --config ../assets/crypto_trade_plan.example.json
 python3 generate_crypto_anomaly_plan.py --config ../assets/crypto_anomaly_plan.example.json
 python3 report_crypto_anomaly_factors.py
 ```
+
+## A-Share Quality Selector
+
+The repository now includes a stronger A-share selector that combines a `finhack` / `Qlib` / `zvt` style multi-factor ranking layer with an `ABu`-style timing and risk-discipline layer, then routes the short list through the local quant engine.
+
+Run a one-off selector:
+
+```bash
+cd scripts
+python3 scan_cn_quality_stocks.py --config ../assets/cn_stock_selector.example.json --stdout-only
+```
+
+This selector:
+
+- starts from a broad A-share financial-report snapshot
+- breaks candidates into growth, business-quality, valuation, and timing scores
+- applies industry caps so the final list is not dominated by a single hot sector
+- routes the short list through the local quant engine before final ranking
+- outputs an actionable Top list with levels, posture, and one clear action per candidate
 
 Run the full recap workflow:
 
@@ -330,6 +351,7 @@ Each plan includes:
 - a first sell level
 - defensive and hard-stop invalidation levels
 - suggested starter and maximum position sizes
+- a trade-framework block with setup phase, reward/stop ratio, validation quality, risk tier, and a simple time-stop
 
 If you only want channel pushes for newly qualifying movers, set `"notify_new_only": true`. In that mode a symbol alerts only when it first enters the qualified plan set, then stays quiet until it drops out and qualifies again later.
 
@@ -367,7 +389,7 @@ cd scripts
 python3 report_crypto_anomaly_factors.py
 ```
 
-This gives you a small `finhack`-style validation loop without bringing in a heavy research stack: the radar records anomaly-score, short-term momentum, relative volume, funding, and open-interest context, then the report estimates forward 6h and 24h outcomes from later snapshots.
+This gives you a small `finhack`-style validation loop without bringing in a heavy research stack: the radar records anomaly-score, short-term momentum, relative volume, funding, open-interest context, setup phase, reward/risk quality, and validation tier, then the report estimates forward 6h and 24h outcomes from later snapshots.
 
 For personal delivery, keep the live notifier target in an ignored local file such as `assets/crypto_trade_plan.discord.local.json`.
 
